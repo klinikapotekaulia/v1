@@ -352,6 +352,7 @@ window.AppApotekTransaksi = {
         html += '</div></div>';
         container.insertAdjacentHTML('beforeend', html);
         lucide.createIcons({ nodes: [container] });
+        SearchableSelect.attach('trx-obat-' + idx, { placeholder: 'Ketik nama obat...' });
     },
 
     onSelectObat: function(idx) {
