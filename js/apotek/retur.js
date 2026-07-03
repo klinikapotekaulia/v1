@@ -194,6 +194,7 @@ window.AppApotekRetur = {
                     AppApotekRetur.simpanRetur();
                 });
             }
+            SearchableSelect.attach('retur-obat', { placeholder: 'Ketik nama obat...' });
         }, 100);
     },
 

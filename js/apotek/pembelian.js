@@ -111,6 +111,7 @@ window.AppApotekPembelian = {
 
         container.insertAdjacentHTML('beforeend', html);
         lucide.createIcons({ nodes: [container] });
+        SearchableSelect.attach('beli-obat-' + idx, { placeholder: 'Ketik nama obat...' });
     },
 
     onSelectObat: function(idx) {

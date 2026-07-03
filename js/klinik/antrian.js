@@ -90,6 +90,7 @@ window.AppKlinikAntrian = {
 
         document.getElementById('antrian-content').innerHTML = html;
         this.renderList();
+        SearchableSelect.attach('ant-pasien', { placeholder: 'Ketik nama / no. RM pasien...' });
     },
 
     tambah: function() {
