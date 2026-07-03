@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0ea5e9">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Aulia App">
+    <title>Apotek &amp; Klinik Aulia</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50:  '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd',
+                            300: '#7dd3fc', 400: '#38bdf8', 500: '#0ea5e9',
+                            600: '#0284c7', 700: '#0369a1', 800: '#075985', 900: '#0c4a6e'
+                        },
+                        accent: {
+                            50: '#f0fdf4', 100: '#dcfce7',
+                            500: '#22c55e', 600: '#16a34a', 700: '#15803d'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- FITUR BARU: tema retro Windows 98 per-akun (lihat Pengaturan > Kelola Users) -->
+    <link rel="stylesheet" href="css/win98.css">
+
+    <!-- Theme init (sebelum render agar tidak flash) -->
+    <script>
+        (function () {
+            var saved = localStorage.getItem('theme');
+            if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+</head>
+
+<body class="h-full overflow-hidden bg-slate-50 dark:bg-slate-900 text-gray-800 dark:text-gray-200">
+
+    <div class="flex h-full overflow-hidden">
+
+        <!-- ===== SIDEBAR DESKTOP ===== -->
+        <aside id="sidebar"
+            class="hidden lg:flex flex-col w-64 h-full bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 transition-colors duration-200 flex-shrink-0">
+            <div class="h-16 flex items-center gap-3 px-6 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <img src="icon-192.png" alt="Logo" class="w-8 h-8 rounded-lg">
+                <div>
+                    <h1 class="font-bold text-primary-600 dark:text-primary-400 text-sm leading-tight">Aulia</h1>
+                    <p class="text-[10px] text-slate-400 dark:text-slate-500">Clinic &amp; Pharmacy</p>
+                </div>
+            </div>
+            <nav class="flex-1 min-h-0 overflow-y-auto p-4 space-y-6 text-sm" id="sidebar-menu"></nav>
+        </aside>
+
+        <!-- ===== SIDEBAR MOBILE ===== -->
+        <aside id="mobile-sidebar"
+            class="fixed inset-y-0 left-0 z-50 w-72 flex flex-col bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 transition-transform duration-300 ease-in-out -translate-x-full lg:hidden">
+            <div class="h-16 flex items-center gap-3 px-6 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <img src="icon-192.png" alt="Logo" class="w-8 h-8 rounded-lg">
+                <div>
+                    <h1 class="font-bold text-primary-600 dark:text-primary-400 text-sm leading-tight">Aulia</h1>
+                    <p class="text-[10px] text-slate-400 dark:text-slate-500">Clinic &amp; Pharmacy</p>
+                </div>
+                <button onclick="toggleMobileSidebar()" aria-label="Tutup menu"
+                    class="ml-auto p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <nav class="flex-1 min-h-0 overflow-y-auto p-4 space-y-6 text-sm" id="mobile-sidebar-menu"></nav>
+        </aside>
+
+        <!-- ===== MAIN CONTENT ===== -->
+        <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+            <!-- TOP NAVBAR -->
+            <header class="h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-30 flex-shrink-0">
+                <div class="flex items-center gap-4">
+                    <button onclick="toggleMobileSidebar()" aria-label="Buka menu"
+                        class="lg:hidden p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
+                        <i data-lucide="menu" class="w-5 h-5"></i>
+                    </button>
+                    <h2 id="page-title" class="font-semibold text-lg">Dashboard</h2>
+                </div>
+
+                <div class="flex items-center gap-2 sm:gap-3">
+                    <!-- Dark Mode Toggle -->
+                    <button onclick="App.toggleTheme()" aria-label="Ganti tema"
+                        class="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                        <i data-lucide="sun"  class="w-5 h-5 hidden dark:block text-yellow-400"></i>
+                        <i data-lucide="moon" class="w-5 h-5 block dark:hidden text-slate-600"></i>
+                    </button>
+                    <!-- User Info -->
+                    <div class="flex items-center gap-2 pl-2 sm:pl-3 border-l border-slate-200 dark:border-slate-600">
+                        <div id="user-avatar"
+                            class="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900 text-primary-600 dark:text-primary-300 flex items-center justify-center font-bold text-xs select-none">
+                            ?
+                        </div>
+                        <div class="hidden sm:block">
+                            <p id="user-name"  class="text-xs font-medium leading-tight">Memuat...</p>
+                            <p id="user-role" class="text-[10px] text-slate-400">-</p>
+                        </div>
+                    </div>
+                    <!-- Logout -->
+                    <button onclick="App.logout()" title="Logout" aria-label="Logout"
+                        class="p-2 text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition">
+                        <i data-lucide="log-out" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- PAGE CONTENT -->
+            <main class="flex-1 overflow-y-auto p-4 sm:p-6" id="app-content">
+                <div class="flex justify-center py-20"><div class="spinner"></div></div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Mobile Backdrop -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden" onclick="toggleMobileSidebar()"></div>
+
+    <!-- ============================================================
+         SCRIPTS — Urutan SANGAT PENTING:
+         1. Lucide Icons
+         2. Firebase SDK (compat)
+         3. SheetJS & PDF libs
+         4. app.js  ← mendefinisikan Utils, App, navigateTo, dll
+         5. auth.js ← HARUS SETELAH app.js karena butuh Utils
+         ============================================================ -->
+
+    <script src="https://cdn.jsdelivr.net/npm/lucide@0.383.0/dist/umd/lucide.min.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+    <!-- app.js DULU, baru auth.js -->
+    <script src="js/app.js"></script>
+    <script src="js/auth.js"></script>
+
+    <!-- DataCache: cache bersama utk koleksi 'obat' & 'pasien' agar
+         halaman lain tidak fetch ulang seluruh koleksi tiap dibuka -->
+    <script src="js/dataCache.js"></script>
+
+    <!-- Mobile Sidebar Toggle -->
+    <script>
+        function toggleMobileSidebar() {
+            var sidebar = document.getElementById('mobile-sidebar');
+            var overlay = document.getElementById('sidebar-overlay');
+            var isOpen  = !sidebar.classList.contains('-translate-x-full');
+
+            if (isOpen) {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('hidden');
+                document.body.style.overflow = '';
+            } else {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+
+                // Salin menu dari desktop ke mobile jika belum ada
+                var src = document.getElementById('sidebar-menu');
+                var dst = document.getElementById('mobile-sidebar-menu');
+                if (src && dst && dst.children.length === 0 && src.children.length > 0) {
+                    dst.innerHTML = src.innerHTML;
+                    if (window.lucide) lucide.createIcons();
+                }
+            }
+        }
+
+        window.addEventListener('resize', function () {
+            if (window.innerWidth >= 1024) {
+                var sidebar = document.getElementById('mobile-sidebar');
+                var overlay = document.getElementById('sidebar-overlay');
+                if (sidebar) sidebar.classList.add('-translate-x-full');
+                if (overlay) overlay.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+        });
+    </script>
+
+    <!-- PWA Service Worker -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(function (reg) { console.log('SW terdaftar, scope:', reg.scope); })
+                    .catch(function (err) { console.warn('SW gagal daftar:', err); });
+            });
+        }
+    </script>
+
+</body>
+</html>
