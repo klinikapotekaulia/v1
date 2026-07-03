@@ -1,0 +1,189 @@
+/**
+ * css/win98.css
+ * FITUR BARU: Tema retro "Windows 98" — hanya aktif untuk akun yang field
+ * `tema` di collection Firestore `users` diset ke "win98" (lihat Pengaturan →
+ * Kelola Users). Semua rule di sini di-scope di bawah class `.theme-win98`
+ * pada <body>, jadi tidak memengaruhi akun lain sama sekali.
+ *
+ * Catatan: aplikasi ini pakai Tailwind CDN (utility classes di-generate
+ * langsung dari markup), jadi pendekatan paling aman adalah menimpa utility
+ * class yang paling sering dipakai (bg-white, rounded-xl, shadow, dsb) lewat
+ * selector bertingkat `.theme-win98 .kelas-tailwind`, yang otomatis punya
+ * spesifisitas lebih tinggi daripada `.kelas-tailwind` sendirian sehingga
+ * menang tanpa perlu !important di semua tempat.
+ */
+
+.theme-win98, .theme-win98 * {
+    font-family: 'Tahoma', 'Segoe UI', 'MS Sans Serif', Arial, sans-serif !important;
+}
+
+.theme-win98 {
+    background-color: #008080 !important; /* Teal klasik desktop Win98 */
+}
+
+/* ── Utility: bevel 3D ala Windows 98 ── */
+.theme-win98 .win98-raised {
+    border-style: solid;
+    border-width: 2px;
+    border-color: #ffffff #808080 #808080 #ffffff;
+    box-shadow: inset -1px -1px 0 #000, inset 1px 1px 0 #dfdfdf;
+}
+.theme-win98 .win98-sunken {
+    border-style: solid;
+    border-width: 2px;
+    border-color: #808080 #ffffff #ffffff #808080;
+    box-shadow: inset -1px -1px 0 #dfdfdf, inset 1px 1px 0 #000;
+}
+
+/* ── Sidebar & Header jadi "window" abu-abu klasik ── */
+.theme-win98 #sidebar,
+.theme-win98 #mobile-sidebar,
+.theme-win98 header,
+.theme-win98 .bg-white,
+.theme-win98 .dark\:bg-slate-800 {
+    background-color: #c0c0c0 !important;
+    color: #000 !important;
+    border-radius: 0 !important;
+    border-color: #808080 #ffffff #ffffff #808080 !important;
+    border-style: solid !important;
+    box-shadow: inset -1px -1px 0 #000, inset 1px 1px 0 #dfdfdf !important;
+}
+
+.theme-win98 .text-gray-800, .theme-win98 .dark\:text-white,
+.theme-win98 .text-gray-200, .theme-win98 .text-slate-600,
+.theme-win98 .text-slate-700 {
+    color: #000 !important;
+}
+
+/* Header sidebar (logo & judul) jadi title bar biru klasik */
+.theme-win98 #sidebar > div:first-child,
+.theme-win98 #mobile-sidebar > div:first-child {
+    background: linear-gradient(90deg, #000080, #1084d0) !important;
+    border-bottom: 2px solid #808080 !important;
+}
+.theme-win98 #sidebar > div:first-child h1,
+.theme-win98 #mobile-sidebar > div:first-child h1 {
+    color: #fff !important;
+}
+.theme-win98 #sidebar > div:first-child p,
+.theme-win98 #mobile-sidebar > div:first-child p {
+    color: #d0d0ff !important;
+}
+
+/* Semua sudut membulat dipatahkan supaya kotak-kotak khas Win98 */
+.theme-win98 .rounded-xl,
+.theme-win98 .rounded-lg,
+.theme-win98 .rounded-md,
+.theme-win98 .rounded-full,
+.theme-win98 .rounded {
+    border-radius: 0 !important;
+}
+
+/* Hilangkan shadow modern, ganti bevel */
+.theme-win98 .shadow, .theme-win98 .shadow-md,
+.theme-win98 .shadow-lg, .theme-win98 .shadow-xl,
+.theme-win98 .shadow-2xl {
+    box-shadow: inset -1px -1px 0 #000, inset 1px 1px 0 #dfdfdf !important;
+}
+
+/* Border generik jadi abu bevel */
+.theme-win98 .border, .theme-win98 .border-slate-200,
+.theme-win98 .dark\:border-slate-700, .theme-win98 .border-slate-100 {
+    border-color: #808080 !important;
+}
+
+/* ── Tombol ala Windows 98 (kotak abu, bevel, teks hitam) ── */
+.theme-win98 button,
+.theme-win98 .bg-primary-600,
+.theme-win98 .bg-green-600,
+.theme-win98 .bg-red-600,
+.theme-win98 .bg-amber-500,
+.theme-win98 .bg-slate-100 {
+    background-color: #c0c0c0 !important;
+    color: #000 !important;
+    border-style: solid !important;
+    border-width: 2px !important;
+    border-color: #ffffff #808080 #808080 #ffffff !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+}
+.theme-win98 button:hover {
+    background-color: #d4d4d4 !important;
+}
+.theme-win98 button:active {
+    border-color: #808080 #ffffff #ffffff #808080 !important;
+}
+
+/* ── Input & Select ala Win98 (sunken/inset border) ── */
+.theme-win98 input,
+.theme-win98 select,
+.theme-win98 textarea {
+    background-color: #fff !important;
+    color: #000 !important;
+    border-radius: 0 !important;
+    border-style: solid !important;
+    border-width: 2px !important;
+    border-color: #808080 #ffffff #ffffff #808080 !important;
+    box-shadow: none !important;
+}
+
+/* ── Tabel klasik: grid tegas, header abu ── */
+.theme-win98 table { border-collapse: collapse !important; }
+.theme-win98 thead tr, .theme-win98 .bg-slate-50, .theme-win98 .dark\:bg-slate-900 {
+    background-color: #c0c0c0 !important;
+    color: #000 !important;
+}
+.theme-win98 th, .theme-win98 td {
+    border: 1px solid #808080 !important;
+}
+
+/* ── Badge/pill jadi kotak tegas ── */
+.theme-win98 [class*="rounded-full"] {
+    border-radius: 0 !important;
+}
+
+/* ── Modal jadi jendela klasik lengkap dengan "title bar" biru ── */
+.theme-win98 #global-modal > div {
+    border-radius: 0 !important;
+    border-style: solid !important;
+    border-width: 2px !important;
+    border-color: #ffffff #808080 #808080 #ffffff !important;
+    box-shadow: inset -1px -1px 0 #000, inset 1px 1px 0 #dfdfdf, 4px 4px 0 rgba(0,0,0,0.4) !important;
+}
+.theme-win98 #global-modal h3 {
+    background: linear-gradient(90deg, #000080, #1084d0) !important;
+    color: #fff !important;
+    margin: -24px -24px 16px -24px !important;
+    padding: 6px 10px !important;
+}
+
+/* ── Scrollbar klasik abu kotak ── */
+.theme-win98 ::-webkit-scrollbar { width: 16px !important; height: 16px !important; }
+.theme-win98 ::-webkit-scrollbar-track { background: #dfdfdf !important; }
+.theme-win98 ::-webkit-scrollbar-thumb {
+    background: #c0c0c0 !important;
+    border-radius: 0 !important;
+    border: 2px solid !important;
+    border-color: #ffffff #808080 #808080 #ffffff !important;
+}
+
+/* ── Spinner loading versi kotak-kotak (bukan lingkaran mulus) ── */
+.theme-win98 .spinner {
+    border-radius: 0 !important;
+    border-color: #808080 !important;
+    border-top-color: #000080 !important;
+}
+
+/* Badge status kecil tetap kebaca meski warnanya ditimpa jadi abu */
+.theme-win98 .text-emerald-600, .theme-win98 .text-green-600,
+.theme-win98 .text-red-600, .theme-win98 .text-red-500,
+.theme-win98 .text-amber-600, .theme-win98 .text-blue-600 {
+    font-weight: bold !important;
+}
+
+/* Cursor gaya klasik untuk elemen yang bisa diklik (best-effort, browser modern
+   tidak menyediakan cursor Win98 asli, jadi kita pakai 'pointer' standar). */
+.theme-win98 button, .theme-win98 [onclick] {
+    cursor: pointer;
+}

@@ -1,0 +1,72 @@
+/* css/style.css */
+
+:root {
+    --bg-main: #f8fafc;
+    --transition-speed: 0.2s;
+}
+
+body {
+    background-color: var(--bg-main);
+    transition: background-color var(--transition-speed) ease, color var(--transition-speed) ease;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar           { width: 5px; height: 5px; }
+::-webkit-scrollbar-track     { background: transparent; }
+::-webkit-scrollbar-thumb     { background: #cbd5e1; border-radius: 99px; }
+.dark ::-webkit-scrollbar-thumb { background: #475569; }
+
+/* ── Page transition ── */
+.page-enter {
+    animation: fadeSlideIn 0.2s ease-out both;
+}
+@keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0);   }
+}
+
+/* ── Loading Spinner ── */
+.spinner {
+    border: 3px solid #e2e8f0;
+    border-top-color: #0ea5e9;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    animation: spin 0.7s linear infinite;
+}
+.dark .spinner {
+    border-color: #334155;
+    border-top-color: #38bdf8;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── Toast / Snackbar ── */
+#app-toast {
+    animation: toastIn 0.25s ease-out;
+}
+@keyframes toastIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0);    }
+}
+
+/* ── Active nav button highlight ── */
+.nav-btn.active,
+.nav-btn[class*="bg-primary"] {
+    font-weight: 600;
+}
+
+/* ── Table responsive scroll ── */
+.table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ── Print styles ── */
+@media print {
+    #sidebar, #mobile-sidebar, header, #sidebar-overlay, #app-toast { display: none !important; }
+    body { overflow: visible !important; }
+    #app-content { padding: 0; }
+}
