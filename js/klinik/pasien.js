@@ -16,8 +16,12 @@ window.AppKlinikPasien = {
         html += '    <p class="text-sm text-slate-500 dark:text-slate-400">Master data pasien klinik & apotek</p>';
         html += '  </div>';
         html += '  <div class="flex flex-wrap gap-2">';
-        html += '    <button onclick="AppKlinikPasien.downloadTemplate()" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> Template Excel</button>';
-        html += '    <label class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2 cursor-pointer"><i data-lucide="upload" class="w-4 h-4"></i> Import Excel <input type="file" accept=".xlsx,.xls" class="hidden" onchange="AppKlinikPasien.handleFileUpload(event)"></label>';
+        // Export/Template/Import data pasien: HANYA untuk role admin & keuangan (data pasien sensitif)
+        if (window.currentRole === 'admin' || window.currentRole === 'keuangan') {
+            html += '    <button onclick="AppKlinikPasien.exportExcel()" class="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Export Data Pasien</button>';
+            html += '    <button onclick="AppKlinikPasien.downloadTemplate()" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> Template Excel</button>';
+            html += '    <label class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2 cursor-pointer"><i data-lucide="upload" class="w-4 h-4"></i> Import Excel <input type="file" accept=".xlsx,.xls" class="hidden" onchange="AppKlinikPasien.handleFileUpload(event)"></label>';
+        }
         html += '    <button onclick="AppKlinikPasien.openForm()" class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2"><i data-lucide="user-plus" class="w-4 h-4"></i> Tambah Manual</button>';
         html += '  </div>';
         html += '</div>';
@@ -197,7 +201,50 @@ window.AppKlinikPasien = {
     // FITUR EXCEL IMPORT
     // ==========================================
     
+    hitungUmur: function(tanggalLahir) {
+        if (!tanggalLahir) return '';
+        var lahir = new Date(tanggalLahir);
+        if (isNaN(lahir.getTime())) return '';
+        var now = new Date();
+        var umur = now.getFullYear() - lahir.getFullYear();
+        var m = now.getMonth() - lahir.getMonth();
+        if (m < 0 || (m === 0 && now.getDate() < lahir.getDate())) umur--;
+        return umur + ' tahun';
+    },
+
+    exportExcel: function() {
+        // Guard di level fungsi juga (bukan cuma sembunyikan tombol), agar tidak bisa
+        // dipanggil manual lewat console oleh role selain admin/keuangan.
+        if (window.currentRole !== 'admin' && window.currentRole !== 'keuangan') {
+            Utils.toast('Anda tidak memiliki akses untuk export data pasien.', 'error');
+            return;
+        }
+        if (!this.data || this.data.length === 0) {
+            Utils.toast('Tidak ada data pasien untuk di-export.', 'error');
+            return;
+        }
+
+        var rows = [['No. RM', 'Nama Lengkap', 'L/P', 'Umur', 'No. Telepon', 'Alamat', 'Alergi Obat']];
+        this.data.forEach(function(p) {
+            rows.push([
+                p.nomorRM || '', p.nama || '', p.jenisKelamin || '',
+                AppKlinikPasien.hitungUmur(p.tanggalLahir), p.noTelepon || '', p.alamat || '', p.alergiObat || ''
+            ]);
+        });
+
+        var ws = XLSX.utils.aoa_to_sheet(rows);
+        var wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Data Pasien');
+
+        var tanggal = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(wb, 'Data_Pasien_Aulia_' + tanggal + '.xlsx');
+    },
+
     downloadTemplate: function() {
+        if (window.currentRole !== 'admin' && window.currentRole !== 'keuangan') {
+            Utils.toast('Anda tidak memiliki akses untuk fitur ini.', 'error');
+            return;
+        }
         var ws_data = [
             ['No. RM', 'Nama Lengkap', 'L/P', 'Tanggal Lahir (YYYY-MM-DD)', 'No. Telepon', 'Alamat', 'Alergi Obat'],
             ['RM-2011-001', 'Contoh Nama Pasien', 'L', '1985-05-15', '081234567890', 'Jl. Contoh No. 1', 'Tidak ada'],
@@ -210,6 +257,11 @@ window.AppKlinikPasien = {
     },
 
     handleFileUpload: function(event) {
+        if (window.currentRole !== 'admin' && window.currentRole !== 'keuangan') {
+            Utils.toast('Anda tidak memiliki akses untuk import data pasien.', 'error');
+            event.target.value = '';
+            return;
+        }
         var file = event.target.files[0];
         if (!file) return;
 
