@@ -14,17 +14,33 @@
 //    Ganti nilai di bawah dengan konfigurasi project Firebase Anda.
 // ============================================================
 const firebaseConfig = {
-  apiKey: "AIzaSyDXuiTRwHttekv5iy6rk8RJA_pVL25v-U4",
-  authDomain: "klinikapotekaulia-61641.firebaseapp.com",
-  projectId: "klinikapotekaulia-61641",
-  storageBucket: "klinikapotekaulia-61641.firebasestorage.app",
-  messagingSenderId: "857781555251",
-  appId: "1:857781555251:web:33dbb41f292026f9ef9346"
+  apiKey: "AIzaSyDqgwteRmvEUH5zsMse7XHsJOEa9s_9eso",
+  authDomain: "aulia-98.firebaseapp.com",
+  projectId: "aulia-98",
+  storageBucket: "aulia-98.firebasestorage.app",
+  messagingSenderId: "745644559694",
+  appId: "1:745644559694:web:3437493d09b490bc95a21f"
 };
 
 firebase.initializeApp(firebaseConfig);
 var db   = firebase.firestore();
 var auth = firebase.auth();
+
+// PENTING: aktifkan cache lokal (IndexedDB) Firestore.
+// Tanpa ini, SETIAP kali halaman di-refresh / dibuka ulang, semua listener
+// (termasuk DataCache) akan mengunduh ulang SELURUH koleksi dari server -
+// inilah penyebab utama reads Firestore cepat menembus kuota harian saat
+// datanya sudah ribuan dokumen. Dengan persistence aktif, data yang sudah
+// pernah diambil disimpan di disk browser; saat dibuka lagi, Firestore SDK
+// membaca dari cache lokal dulu dan hanya menarik dari server dokumen yang
+// benar-benar berubah sejak terakhir kali dibuka.
+db.enablePersistence({ synchronizeTabs: true }).catch(function (err) {
+    if (err.code === 'failed-precondition') {
+        console.warn('Firestore persistence: hanya bisa aktif di satu tab pada satu waktu.');
+    } else if (err.code === 'unimplemented') {
+        console.warn('Firestore persistence: browser ini tidak mendukung fitur cache offline.');
+    }
+});
 
 // Buat juga tersedia sebagai window.db / window.auth
 window.db   = db;
