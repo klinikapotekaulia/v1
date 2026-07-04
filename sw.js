@@ -3,7 +3,7 @@
  * Strategi: Cache shell statis, skip Firebase/CDN dynamic calls.
  */
 
-var CACHE_NAME = 'aulia-v3';
+var CACHE_NAME = 'aulia-v4';
 
 var SHELL_URLS = [
     './',
