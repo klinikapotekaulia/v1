@@ -128,12 +128,11 @@ window.AppApotekObat = {
         html += '</div>';
 
         html += '<div class="grid grid-cols-2 gap-4">';
-        // FIX: logika readonly sebelumnya terbalik — field ini malah TERKUNCI saat "Tambah Manual"
-        // (obat baru) sehingga stok awal tidak bisa diisi, dan malah TERBUKA saat edit padahal
-        // perubahan stok saat edit tidak pernah tersimpan (lihat simpan(), field stok tidak
-        // diikutkan pada mode edit). Sekarang: editable saat tambah baru, terkunci saat edit.
-        html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Stok Awal</label><input type="number" id="fo-stok" value="' + (isEdit ? (o.stok || 0) : 0) + '" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm ' + (isEdit ? 'bg-slate-100 dark:bg-slate-800 text-slate-400' : '') + '" ' + (isEdit ? 'readonly' : '') + '></div>';
-        html += '<div class="flex items-end"><p class="text-xs text-slate-400 pb-2">' + (isEdit ? '*Stok tidak bisa diubah langsung di sini. Gunakan menu <strong>Pembelian Obat</strong> atau <strong>Retur Obat</strong> untuk mengubah stok.' : '*Isi stok awal saat pertama kali menambahkan obat. Setelah tersimpan, gunakan menu <strong>Pembelian Obat</strong> untuk menambah stok.') + '</p></div>';
+        // Stok Awal kini bisa diedit kapan saja (tambah maupun edit obat).
+        // Catatan: perubahan lewat sini TIDAK tercatat di riwayat Pembelian/Retur/Stock Opname,
+        // jadi sebaiknya hanya dipakai untuk koreksi data, bukan transaksi rutin.
+        html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Stok Awal</label><input type="number" id="fo-stok" value="' + (o.stok || 0) + '" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm"></div>';
+        html += '<div class="flex items-end"><p class="text-xs text-slate-400 pb-2">' + (isEdit ? '*Mengubah nilai ini langsung mengubah stok tersimpan. Untuk transaksi rutin, gunakan menu <strong>Pembelian Obat</strong>, <strong>Retur Obat</strong>, atau <strong>Stock Opname</strong>.' : '*Isi stok awal saat pertama kali menambahkan obat.') + '</p></div>';
         html += '</div>';
 
         html += '<div class="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-700">';
@@ -166,6 +165,7 @@ window.AppApotekObat = {
             hpp: parseFloat(document.getElementById('fo-hpp').value) || 0,
             hargaJual: parseFloat(document.getElementById('fo-jual').value) || 0,
             stokMinimum: parseFloat(document.getElementById('fo-min').value) || 0,
+            stok: parseFloat(document.getElementById('fo-stok').value) || 0,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
 
@@ -178,7 +178,6 @@ window.AppApotekObat = {
         if (isEdit) {
             p = db.collection('obat').doc(idField.value).update(obj);
         } else {
-            obj.stok = parseFloat(document.getElementById('fo-stok').value) || 0;
             obj.createdAt = firebase.firestore.FieldValue.serverTimestamp();
             p = db.collection('obat').add(obj);
         }
