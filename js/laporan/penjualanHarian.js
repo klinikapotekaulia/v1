@@ -11,7 +11,7 @@
  * - Ekspor CSV
  *
  * FIRESTORE COLLECTIONS:
- *   - transaksi { tanggal, tipe, totalBayar, items[], metodePembayaran, jasaResep }
+ *   - transaksi { tanggal, tipe, totalAkhir, items[], metodeBayar, jasaResep }
  *
  * CARA PASANG:
  *   1. Tambahkan file ini ke daftar cache sw.js
@@ -122,14 +122,18 @@ window.AppLaporanPenjualanHarian = {
         var harianMap  = {};  // tanggal → omzet
 
         this.data.forEach(function(t) {
-            var omzet = t.totalBayar || 0;
+            // FIX: field yang benar-benar ditulis oleh apotek/transaksi.js adalah
+            // `totalAkhir` & `metodeBayar` (bukan `totalBayar`/`metodePembayaran`).
+            // Sebelumnya laporan ini selalu baca field yang tidak pernah ada,
+            // sehingga omzet selalu tampil Rp 0 dan semua transaksi dianggap cash.
+            var omzet = t.totalAkhir || 0;
             totalOmzet += omzet;
 
             var tipe = t.tipe || 'obat_bebas';
             tipeCount[tipe] = (tipeCount[tipe] || 0) + 1;
             tipeOmzet[tipe] = (tipeOmzet[tipe] || 0) + omzet;
 
-            var met = (t.metodePembayaran || 'cash').toLowerCase();
+            var met = (t.metodeBayar || 'cash').toLowerCase();
             if (met === 'cash' || met === 'tunai') metodePay.cash += omzet;
             else if (met === 'transfer' || met === 'bca' || met === 'mandiri') metodePay.transfer += omzet;
             else if (met === 'qris') metodePay.qris += omzet;
@@ -253,8 +257,8 @@ window.AppLaporanPenjualanHarian = {
             html += '<td class="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">' + (t.tanggal || '-') + '</td>';
             html += '<td class="px-4 py-3"><span class="text-xs bg-primary-50 text-primary-700 dark:bg-primary-900/40 dark:text-primary-400 px-2 py-0.5 rounded-full">' + (tipeLabel2[t.tipe] || t.tipe || '-') + '</span></td>';
             html += '<td class="px-4 py-3 text-gray-800 dark:text-white">' + Utils.escapeHtml(t.namaPasien || t.namaResep || t.keterangan || '-') + '</td>';
-            html += '<td class="px-4 py-3 text-center capitalize text-slate-600 dark:text-slate-300">' + Utils.escapeHtml(t.metodePembayaran || 'cash') + '</td>';
-            html += '<td class="px-4 py-3 text-right font-semibold text-gray-800 dark:text-white">' + Utils.formatRupiah(t.totalBayar || 0) + '</td>';
+            html += '<td class="px-4 py-3 text-center capitalize text-slate-600 dark:text-slate-300">' + Utils.escapeHtml(t.metodeBayar || 'cash') + '</td>';
+            html += '<td class="px-4 py-3 text-right font-semibold text-gray-800 dark:text-white">' + Utils.formatRupiah(t.totalAkhir || 0) + '</td>';
             html += '</tr>';
         });
 
@@ -274,12 +278,12 @@ window.AppLaporanPenjualanHarian = {
                 t.tanggal || '',
                 tipeLabel[t.tipe] || t.tipe || '',
                 t.namaPasien || t.namaResep || t.keterangan || '',
-                t.metodePembayaran || 'cash',
-                (t.totalBayar || 0).toString()
+                t.metodeBayar || 'cash',
+                (t.totalAkhir || 0).toString()
             ]);
         });
         // Footer total
-        var total = this.data.reduce(function(s, t) { return s + (t.totalBayar || 0); }, 0);
+        var total = this.data.reduce(function(s, t) { return s + (t.totalAkhir || 0); }, 0);
         rows.push(['', '', '', 'TOTAL', total.toString()]);
 
         var csv = rows.map(function(r) { return r.map(function(c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(','); }).join('\n');
