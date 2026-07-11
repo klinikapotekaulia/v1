@@ -204,7 +204,7 @@ window.AppChat = {
                             '    ' + roleBadge + '' +
                             '  </div>' +
                             '  <div class="relative max-w-[85%] md:max-w-[70%] flex items-start gap-1">' +
-                            '    <div class="bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 rounded-2xl rounded-tl-none px-4 py-2.5 shadow-sm border border-slate-150 dark:border-slate-600">' +
+                            '    <div class="bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 rounded-2xl rounded-tl-none px-4 py-2.5 shadow-sm border border-slate-100 dark:border-slate-600">' +
                             '      <p class="text-sm whitespace-pre-wrap break-words leading-relaxed">' + escapedMessage + '</p>' +
                             '      <div class="flex items-center justify-end gap-1 text-[9px] text-slate-400 dark:text-slate-400 mt-1 select-none leading-none">' +
                             '        <span>' + formattedTime + '</span>' +
@@ -253,7 +253,18 @@ window.AppChat = {
         }
         input.disabled = true;
         
-        var senderId = window.currentUid || (firebase.auth().currentUser ? firebase.auth().currentUser.uid : 'system');
+        var authUser = firebase.auth().currentUser;
+        var senderId = window.currentUid || (authUser ? authUser.uid : null);
+        if (!senderId) {
+            Utils.toast('Sesi login tidak terdeteksi, silakan muat ulang halaman.', 'error');
+            input.disabled = false;
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="send" class="w-5 h-5"></i>';
+                if (window.lucide) lucide.createIcons({ el: btn });
+            }
+            return;
+        }
         var senderName = window.currentUserName || 'Staf';
         var senderRole = window.currentRole || 'staf';
         

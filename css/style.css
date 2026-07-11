@@ -70,3 +70,16 @@ body {
     body { overflow: visible !important; }
     #app-content { padding: 0; }
 }
+
+/* ── Popover open animation (dipakai js/chat.js untuk emoji picker) ──
+   Class aslinya (animate-in/fade-in/slide-in-from-bottom-2) berasal dari
+   plugin "tailwindcss-animate" yang tidak tersedia di build ini (sandbox
+   tanpa akses internet untuk npm install). Disediakan manual di sini
+   supaya popovernya tetap muncul dengan transisi halus. */
+.animate-in.fade-in.slide-in-from-bottom-2 {
+    animation: chatPopoverIn 0.15s ease-out both;
+}
+@keyframes chatPopoverIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0);   }
+}

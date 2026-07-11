@@ -3,7 +3,7 @@
  * Strategi: Cache shell statis, skip Firebase/CDN dynamic calls.
  */
 
-var CACHE_NAME = 'aulia-v2'; // FIX: dinaikkan supaya cache lama (antrian.js versi sebelum fitur Display) dibuang
+var CACHE_NAME = 'aulia-v3'; // FIX: dinaikkan supaya cache lama (sebelum perbaikan menu Chat) dibuang
 
 var SHELL_URLS = [
     './',
