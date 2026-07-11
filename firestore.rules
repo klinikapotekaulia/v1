@@ -270,7 +270,14 @@ service cloud.firestore {
     // Transaksi utk role apotek (dan admin, sebelum fix isAdminKeuangan()
     // di atas). Tulis tetap hanya admin/keuangan lewat halaman Pengaturan.
     match /pengaturanPembagian/{id}            { allow read: if isApotekStaff() || isKlinikStaff(); allow write: if isAdminKeuangan(); }
-    match /pengaturanPembagianHistory/{id}     { allow read: if isAdminKeuangan(); allow write: if false; }
+    // BUGFIX: sebelumnya "allow write: if false" memblokir CREATE juga,
+    // padahal js/pengaturan/pembagian.js membuat snapshot history baru
+    // lewat batch.commit() setiap kali menyimpan (bareng dgn update ke
+    // pengaturanPembagian/global). Karena satu batch, history ditolak ->
+    // SELURUH batch gagal -> "Pengaturan Pembagian Hasil" gagal disimpan
+    // sama sekali. Sekarang: create diizinkan (admin/keuangan), tapi tetap
+    // append-only — tidak bisa diubah/dihapus setelah dibuat.
+    match /pengaturanPembagianHistory/{id}     { allow read: if isAdminKeuangan(); allow create: if isAdminKeuangan(); allow update, delete: if false; }
     match /masterTindakan/{id}                 { allow read: if isAnyStaff(); allow write: if isAdminKeuangan(); }
 
     // ------------------------------------------------------------
