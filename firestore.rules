@@ -49,7 +49,16 @@ service cloud.firestore {
     }
 
     function isAdminKeuangan() {
-      return hasRole(['keuangan']);
+      // BUGFIX: nama fungsi ini "Admin ATAU Keuangan" tapi implementasinya
+      // sebelumnya hanya mengizinkan role 'keuangan'. Ini menyebabkan role
+      // 'admin' kena PERMISSION_DENIED di HAMPIR SEMUA koleksi yang memakai
+      // fungsi ini (kasKeluar, auditLog, pengaturanPembagian, pengaturanGaji,
+      // dll) walaupun app.js (roleAccess) & UI sudah memberi admin akses ke
+      // menu-menu tsb (lihat komentar "admin sekarang punya akses penuh (CRUD)
+      // ke modul Keuangan" di js/app.js). Query yang gagal di tengah
+      // Promise.all() bikin SELURUH halaman gagal render ("Gagal memuat"),
+      // makanya dampaknya terasa meluas ke banyak halaman admin.
+      return hasRole(['admin', 'keuangan']);
     }
 
     function isApotekStaff() {
@@ -182,7 +191,11 @@ service cloud.firestore {
     }
 
     match /antrian/{id} {
-      allow read: if isKlinikStaff();
+      // BUGFIX: js/apotek/transaksi.js ikut membaca 'antrian' (Promise.all)
+      // untuk alur resep klinik, tapi sebelumnya role 'apotek' tidak
+      // termasuk isKlinikStaff() -> query ditolak -> seluruh halaman
+      // Transaksi apotek gagal dimuat.
+      allow read: if isKlinikStaff() || isApotekStaff();
       allow create, update: if isKlinikStaff();
       allow delete: if isAdminKeuangan();
     }
@@ -207,7 +220,15 @@ service cloud.firestore {
     // sesuai roleAccess admin -> 'keuangan' penuh CRUD)
     // ------------------------------------------------------------
     match /jurnalManual/{id}      { allow read, write: if isAdminKeuangan(); }
-    match /kasKeluar/{id}         { allow read, write: if isAdminKeuangan(); }
+    // BUGFIX: js/laporan/pengeluaran.js mengizinkan role 'apotek' membaca
+    // & mengajukan pengeluaran (canInput = apotek||keuangan), tapi rule lama
+    // membatasi TOTAL koleksi ini ke isAdminKeuangan() saja -> halaman
+    // Pengeluaran apotek selalu gagal dimuat. Approve/tolak/hapus tetap
+    // hanya admin/keuangan.
+    match /kasKeluar/{id} {
+      allow read, create: if isApotekStaff();
+      allow update, delete: if isAdminKeuangan();
+    }
     match /saldoAwal/{id}         { allow read, write: if isAdminKeuangan(); }
     match /payrollHistory/{id}    { allow read: if isAdminKeuangan(); allow write: if hasRole(['keuangan']); }
     match /piutangKaryawan/{id}   { allow read, write: if isAdminKeuangan(); }
@@ -243,7 +264,12 @@ service cloud.firestore {
     match /pengaturan/antrianDisplay           { allow read: if true; allow write: if isAnyStaff(); }
     match /pengaturan/profil                   { allow read: if isAnyStaff(); allow write: if isAdminKeuangan(); }
     match /pengaturanGaji/{id}                 { allow read, write: if isAdminKeuangan(); }
-    match /pengaturanPembagian/{id}            { allow read, write: if isAdminKeuangan(); }
+    // BUGFIX: dibaca oleh js/apotek/transaksi.js (Promise.all) untuk hitung
+    // margin resep & racik obat saat transaksi -> sebelumnya read dibatasi
+    // isAdminKeuangan() saja, jadi ikut menjatuhkan seluruh halaman
+    // Transaksi utk role apotek (dan admin, sebelum fix isAdminKeuangan()
+    // di atas). Tulis tetap hanya admin/keuangan lewat halaman Pengaturan.
+    match /pengaturanPembagian/{id}            { allow read: if isApotekStaff() || isKlinikStaff(); allow write: if isAdminKeuangan(); }
     match /pengaturanPembagianHistory/{id}     { allow read: if isAdminKeuangan(); allow write: if false; }
     match /masterTindakan/{id}                 { allow read: if isAnyStaff(); allow write: if isAdminKeuangan(); }
 
