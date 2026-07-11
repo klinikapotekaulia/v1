@@ -230,10 +230,22 @@ service cloud.firestore {
       allow update, delete: if isAdminKeuangan();
     }
     match /saldoAwal/{id}         { allow read, write: if isAdminKeuangan(); }
-    match /payrollHistory/{id}    { allow read: if isAdminKeuangan(); allow write: if hasRole(['keuangan']); }
+    // BUGFIX: sebelumnya "allow write: if hasRole(['keuangan'])" -> role 'admin' bisa BUKA
+    // halaman Payroll (lihat guard role di js/keuangan/payroll.js init()) tapi tombol
+    // "Bayarkan" akan gagal disimpan (permission-denied) karena rule tulis cuma izinkan
+    // 'keuangan'. Diganti isAdminKeuangan() supaya konsisten dgn "admin full CRUD Keuangan".
+    match /payrollHistory/{id}    { allow read, write: if isAdminKeuangan(); }
+    // BARU: menyimpan tanggal mulai periode pendapatan karyawan & pembagian hasil yang
+    // BELUM dibayarkan (js/keuangan/payroll.js). Direset (mulai = besok) HANYA saat tombol
+    // "Bayarkan" ditekan — TIDAK direset oleh perubahan pengaturan pembagian hasil (lihat
+    // pengaturanPembagianHistory di atas), supaya akumulasi tetap dari terhitung s/d dibayarkan.
+    match /payrollPeriode/{id}    { allow read, write: if isAdminKeuangan(); }
     match /piutangKaryawan/{id}   { allow read, write: if isAdminKeuangan(); }
     match /thrTabungan/{id}       { allow read, write: if isAdminKeuangan(); }
-    match /thrPembayaranHistory/{id} { allow read: if isAdminKeuangan(); allow write: if hasRole(['keuangan']); }
+    // BUGFIX: sama seperti payrollHistory di atas — tombol "Bayarkan & Reset" THR di
+    // js/keuangan/payroll.js bisa ditekan oleh admin, tapi write ditolak karena rule lama
+    // cuma izinkan 'keuangan'.
+    match /thrPembayaranHistory/{id} { allow read, write: if isAdminKeuangan(); }
 
     // ------------------------------------------------------------
     // CHAT GRUP — untuk diskusi saling tanya jawab semua user
