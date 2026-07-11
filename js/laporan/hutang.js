@@ -165,6 +165,11 @@ window.AppLaporanHutang = {
             batch.update(kasRef, { jumlah: total });
             return batch.commit().then(function() {
                 Utils.toast('Faktur berhasil dilunasi!', 'success');
+                AuditLog.catat({
+                    aksi: 'bayar', modul: 'Hutang Usaha', koleksi: 'pembelian', targetId: id,
+                    deskripsi: 'Lunasi faktur pembelian (' + (doc.data().supplier || '-') + ')',
+                    nominal: total
+                });
                 AppLaporanHutang.init();
             });
         }).catch(function(err) { Utils.toast('Gagal: ' + err.message, 'error'); });

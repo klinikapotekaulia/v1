@@ -593,25 +593,66 @@ window.AppApotekTransaksi = {
 
         Utils.toast('Memproses transaksi...', 'info');
 
-        // FIX: gunakan batch tunggal agar transaksi + pengurangan stok bersifat atomik.
-        var batch = db.batch();
+        // FIX (KEAMANAN STOK): sebelumnya pakai batch.update() + FieldValue.increment()
+        // yang TIDAK membaca stok terkini dan TIDAK memvalidasi hasil akhir -- kalau ada
+        // 2 transaksi bersamaan untuk obat yang sama, stok bisa jadi MINUS (oversell).
+        // Sekarang pakai runTransaction(): baca stok semua obat dulu di dalam transaksi,
+        // validasi cukup, baru tulis. Firestore otomatis retry transaksi ini kalau ada
+        // transaksi lain yang menyentuh dokumen obat yang sama di waktu bersamaan,
+        // sehingga pengecekan stok selalu berdasarkan data terbaru (tidak stale).
         var trxRef = db.collection('transaksi').doc();
-        batch.set(trxRef, obj);
-        items.forEach(function(item) {
-            var oref = db.collection('obat').doc(item.obatId);
-            batch.update(oref, { stok: firebase.firestore.FieldValue.increment(-item.jumlah) });
-        });
-        if (self.tipe === 'resep_klinik' && obj.resepId) {
-            batch.update(db.collection('rekamMedis').doc(obj.resepId), { statusResep: 'selesai' });
-        }
-        batch.commit().then(function() {
+
+        db.runTransaction(function(tx) {
+            // 1) BACA semua dokumen obat yang terlibat TERLEBIH DAHULU (wajib di Firestore:
+            //    semua read harus selesai sebelum write pertama dalam satu transaksi).
+            var obatRefs = items.map(function(item) {
+                return db.collection('obat').doc(item.obatId);
+            });
+
+            return Promise.all(obatRefs.map(function(ref) { return tx.get(ref); }))
+                .then(function(snaps) {
+                    // 2) VALIDASI: pastikan setiap obat masih ada & stoknya cukup.
+                    //    Jika tidak, batalkan seluruh transaksi (throw) -- tidak ada
+                    //    perubahan sebagian (all-or-nothing).
+                    var updates = [];
+                    for (var i = 0; i < items.length; i++) {
+                        var item = items[i];
+                        var snap = snaps[i];
+
+                        if (!snap.exists) {
+                            throw new Error('Obat "' + item.namaObat + '" tidak ditemukan (mungkin sudah dihapus).');
+                        }
+
+                        var stokSaatIni = snap.data().stok || 0;
+                        if (stokSaatIni < item.jumlah) {
+                            throw new Error('Stok "' + item.namaObat + '" tidak cukup. Tersisa ' +
+                                stokSaatIni + ', dibutuhkan ' + item.jumlah + '.');
+                        }
+
+                        updates.push({ ref: obatRefs[i], stokBaru: stokSaatIni - item.jumlah });
+                    }
+
+                    // 3) TULIS: simpan transaksi + kurangi stok obat, semua atomik.
+                    tx.set(trxRef, obj);
+                    updates.forEach(function(u) {
+                        // Tulis nilai absolut hasil validasi (bukan increment lagi),
+                        // supaya nilai yang tersimpan konsisten dengan yang divalidasi
+                        // di atas & selalu >= 0.
+                        tx.update(u.ref, { stok: u.stokBaru });
+                    });
+
+                    if (self.tipe === 'resep_klinik' && obj.resepId) {
+                        tx.update(db.collection('rekamMedis').doc(obj.resepId), { statusResep: 'selesai' });
+                    }
+                });
+        }).then(function() {
             obj.id = trxRef.id;
             Utils.toast('Transaksi berhasil! Stok obat dikurangi.', 'success');
             self.cetakStruk(obj, printWindow); // KIRIM WINDOW YANG SUDAH DIBUKA KE FUNGSI CETAK
-            AppApotekTransaksi.init(); 
+            AppApotekTransaksi.init();
         }).catch(function(err) {
             Utils.toast('Gagal menyimpan: ' + err.message, 'error');
-            if(printWindow) printWindow.close(); // Tutup window kalau transaksinya gagal
+            if (printWindow) printWindow.close(); // Tutup window kalau transaksinya gagal
         });
     },
 
@@ -621,65 +662,158 @@ window.AppApotekTransaksi = {
             Utils.toast('Popup struk diblokir browser. Izinkan pop-up untuk situs ini.', 'error');
             return;
         }
+
+        // Tampilkan loading di window cetak selagi mengambil data dari Firestore
+        w.document.write('<html><head><title>Struk Transaksi</title></head><body style="font-family:monospace;padding:20px;text-align:center;">Memuat data struk...</body></html>');
+        w.document.close();
         
-        var tgl = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
-        
-        var html = '<html><head><title>Struk Transaksi</title>';
-        html += '<style>';
-        html += 'body { font-family: "Courier New", monospace; font-size: 12px; width: 80mm; margin: 0; padding: 10px; color: #000; }';
-        html += 'h2, h3, p { margin: 0; padding: 0; text-align: center; }';
-        html += 'hr { border-top: 1px dashed #000; margin: 8px 0; }';
-        html += 'table { width: 100%; border-collapse: collapse; }';
-        html += 'td { vertical-align: top; padding: 2px 0; }';
-        html += '.right { text-align: right; }';
-        html += '.bold { font-weight: bold; }';
-        html += '</style></head><body>';
-        
-        html += '<h2 class="bold">AULIA APOTEK KLINIK</h2>';
-        html += '<p>Jl. Contoh Alamat No. 123, Kota</p>';
-        html += '<p>Telp: 0812-3456-7890</p><hr>';
-        
-        html += '<table>';
-        html += '<tr><td>No</td><td>: ' + data.id.substring(0, 8).toUpperCase() + '</td></tr>';
-        html += '<tr><td>Tgl</td><td>: ' + tgl + '</td></tr>';
-        html += '<tr><td>Pasien</td><td>: ' + Utils.escapeHtml(data.namaPasien || '-') + '</td></tr>';
-        if (data.tipe === 'resep_klinik' || data.tipe === 'resep_luar') {
-            html += '<tr><td>Dokter</td><td>: ' + Utils.escapeHtml(data.dokterLuar || 'Klinik') + '</td></tr>';
-        }
-        html += '<tr><td>Bayar</td><td>: ' + ((data.metodeBayar || '-') + '').toUpperCase() + '</td></tr>';
-        html += '</table><hr>';
-        
-        html += '<table>';
-        data.items.forEach(function(item) {
-            html += '<tr><td colspan="2">' + Utils.escapeHtml(item.namaObat || '') + '</td></tr>';
-            html += '<tr><td>' + item.jumlah + ' x ' + Utils.formatRupiah(item.hargaJual) + '</td><td class="right">' + Utils.formatRupiah(item.jumlah * item.hargaJual) + '</td></tr>';
-        });
-        html += '</table><hr>';
-        
-        if (data.tindakanItems && data.tindakanItems.length > 0) {
+        db.collection('pengaturan').doc('profil').get().then(function(doc) {
+            var p = doc.exists ? doc.data() : {};
+            
+            // Fallback values bila record belum ada atau kosong
+            var namaInstansi = p.nama || 'Aulia Apotek Klinik';
+            var tampilkanLogo = p.tampilkanLogo !== false;
+            var logoStrukB64 = p.logoStrukB64 || '';
+            var logoUkuran = p.logoUkuran || 100;
+            var logoPosisi = p.logoPosisi || 'center';
+            
+            var h1 = p.strukHeader1 || namaInstansi;
+            var h2 = p.strukHeader2 || '';
+            var h3 = p.strukHeader3 || p.alamat || '';
+            var h4 = p.strukHeader4 || (p.telp ? 'Telp: ' + p.telp : '');
+            var hSelesai = p.strukHeaderSelesai || '';
+            
+            var showPasien = p.showPasien !== false;
+            var showDokter = p.showDokter !== false;
+            var showMetodeBayar = p.showMetodeBayar !== false;
+            
+            var f1 = p.strukFooter1 || 'Terima Kasih';
+            var f2 = p.strukFooter2 || 'Semoga Lekas Sembuh';
+            var fRetur = p.footerStruk || '';
+            
+            var strukLebar = p.strukLebar || '80mm';
+            var strukUkuranFont = p.strukUkuranFont || '12px';
+
+            var tgl = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+            
+            var html = '<html><head><title>Struk Transaksi</title>';
+            html += '<style>';
+            html += 'body { font-family: "Courier New", monospace; font-size: ' + strukUkuranFont + '; width: ' + strukLebar + '; margin: 0; padding: 10px; color: #000; }';
+            html += 'h2, h3, p { margin: 0; padding: 0; text-align: center; }';
+            html += 'hr { border-top: 1px dashed #000; margin: 8px 0; }';
+            html += 'table { width: 100%; border-collapse: collapse; }';
+            html += 'td { vertical-align: top; padding: 2px 0; }';
+            html += '.right { text-align: right; }';
+            html += '.bold { font-weight: bold; }';
+            html += '.center { text-align: center; }';
+            html += '.flex-logo { display: flex; }';
+            html += '.flex-logo.center { justify-content: center; }';
+            html += '.flex-logo.left { justify-content: flex-start; }';
+            html += '.flex-logo.right { justify-content: flex-end; }';
+            html += '</style></head><body>';
+            
+            // 1. Logo
+            if (tampilkanLogo) {
+                var alignClass = logoPosisi; // left, center, right
+                if (logoStrukB64) {
+                    html += '<div class="flex-logo ' + alignClass + '" style="margin-bottom: 8px;">';
+                    html += '  <img src="' + logoStrukB64 + '" style="width: ' + logoUkuran + 'px; height: auto;">';
+                    html += '</div>';
+                } else {
+                    // Default circle logo if no base64 logo uploaded but toggle is true
+                    html += '<div class="flex-logo ' + alignClass + '" style="margin-bottom: 8px;">';
+                    html += '  <div style="border: 1.5px solid #000; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px;">';
+                    html += '    ' + h1.charAt(0);
+                    html += '  </div>';
+                    html += '</div>';
+                }
+            }
+
+            // 2. Headers
+            if (h1) html += '<h2 class="bold">' + Utils.escapeHtml(h1) + '</h2>';
+            if (h2) html += '<p>' + Utils.escapeHtml(h2) + '</p>';
+            if (h3) html += '<p>' + Utils.escapeHtml(h3) + '</p>';
+            if (h4) html += '<p>' + Utils.escapeHtml(h4) + '</p>';
+            if (hSelesai) html += '<p style="font-style: italic; margin-top: 2px;">' + Utils.escapeHtml(hSelesai) + '</p>';
+            
+            html += '<hr>';
+            
+            // 3. Metadata
             html += '<table>';
-            data.tindakanItems.forEach(function(t) {
-                html += '<tr><td>' + Utils.escapeHtml(t.namaTindakan || '') + '</td><td class="right">' + Utils.formatRupiah(t.hargaJual) + '</td></tr>';
+            html += '<tr><td style="width: 25%;">No</td><td>: ' + data.id.substring(0, 8).toUpperCase() + '</td></tr>';
+            html += '<tr><td>Tgl</td><td>: ' + tgl + '</td></tr>';
+            if (showPasien) {
+                html += '<tr><td>Pasien</td><td>: ' + Utils.escapeHtml(data.namaPasien || '-') + '</td></tr>';
+            }
+            if (showDokter && (data.tipe === 'resep_klinik' || data.tipe === 'resep_luar')) {
+                html += '<tr><td>Dokter</td><td>: ' + Utils.escapeHtml(data.dokterLuar || 'Klinik') + '</td></tr>';
+            }
+            if (showMetodeBayar) {
+                html += '<tr><td>Bayar</td><td>: ' + ((data.metodeBayar || '-') + '').toUpperCase() + '</td></tr>';
+            }
+            html += '</table><hr>';
+            
+            // 4. Items Table
+            html += '<table>';
+            data.items.forEach(function(item) {
+                html += '<tr><td colspan="2">' + Utils.escapeHtml(item.namaObat || '') + '</td></tr>';
+                html += '<tr><td>' + item.jumlah + ' x ' + Utils.formatRupiah(item.hargaJual) + '</td><td class="right">' + Utils.formatRupiah(item.jumlah * item.hargaJual) + '</td></tr>';
             });
             html += '</table><hr>';
-        }
-        
-        html += '<table>';
-        html += '<tr><td>Total Obat</td><td class="right">' + Utils.formatRupiah(data.totalObat) + '</td></tr>';
-        if (data.totalRacik > 0) html += '<tr><td>Racik (' + data.racikanItems.length + ' item)</td><td class="right">' + Utils.formatRupiah(data.totalRacik) + '</td></tr>';
-        if (data.totalTindakan > 0) html += '<tr><td>Total Tindakan</td><td class="right">' + Utils.formatRupiah(data.totalTindakan) + '</td></tr>';
-        if (data.jasaResep > 0) html += '<tr><td>Jasa Resep</td><td class="right">' + Utils.formatRupiah(data.jasaResep) + '</td></tr>';
-        if (data.pembulatan > 0) html += '<tr><td>Pembulatan</td><td class="right">' + Utils.formatRupiah(data.pembulatan) + '</td></tr>';
-        html += '<tr class="bold"><td>TOTAL</td><td class="right">' + Utils.formatRupiah(data.totalAkhir) + '</td></tr>';
-        html += '</table><hr>';
-        
-        html += '<p>Terima Kasih</p>';
-        html += '<p>Semoga Lekas Sembuh</p>';
-        
-        html += '<script>window.onload = function() { window.print(); }<\/script>';
-        html += '</body></html>';
-        
-        w.document.write(html);
-        w.document.close();
+            
+            if (data.tindakanItems && data.tindakanItems.length > 0) {
+                html += '<table>';
+                data.tindakanItems.forEach(function(t) {
+                    html += '<tr><td>' + Utils.escapeHtml(t.namaTindakan || '') + '</td><td class="right">' + Utils.formatRupiah(t.hargaJual) + '</td></tr>';
+                });
+                html += '</table><hr>';
+            }
+            
+            // 5. Totals
+            html += '<table>';
+            html += '<tr><td>Total Obat</td><td class="right">' + Utils.formatRupiah(data.totalObat) + '</td></tr>';
+            if (data.totalRacik > 0) html += '<tr><td>Racik (' + data.racikanItems.length + ' item)</td><td class="right">' + Utils.formatRupiah(data.totalRacik) + '</td></tr>';
+            if (data.totalTindakan > 0) html += '<tr><td>Total Tindakan</td><td class="right">' + Utils.formatRupiah(data.totalTindakan) + '</td></tr>';
+            if (data.jasaResep > 0) html += '<tr><td>Jasa Resep</td><td class="right">' + Utils.formatRupiah(data.jasaResep) + '</td></tr>';
+            if (data.pembulatan > 0) html += '<tr><td>Pembulatan</td><td class="right">' + Utils.formatRupiah(data.pembulatan) + '</td></tr>';
+            html += '<tr class="bold"><td>TOTAL</td><td class="right">' + Utils.formatRupiah(data.totalAkhir) + '</td></tr>';
+            html += '</table><hr>';
+            
+            // 6. Footers
+            if (f1) html += '<p>' + Utils.escapeHtml(f1) + '</p>';
+            if (f2) html += '<p>' + Utils.escapeHtml(f2) + '</p>';
+            if (fRetur) html += '<p style="font-style: italic; margin-top: 4px;">* ' + Utils.escapeHtml(fRetur) + ' *</p>';
+            
+            html += '<script>window.onload = function() { window.print(); }<\/script>';
+            html += '</body></html>';
+            
+            // Re-open/clear the document and write the real content
+            w.document.open();
+            w.document.write(html);
+            w.document.close();
+        }).catch(function(err) {
+            console.error('Gagal mengambil profil struk:', err);
+            // Fallback rendering in case of database load failure
+            var tgl = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+            var html = '<html><head><title>Struk Transaksi</title>';
+            html += '<style>body { font-family: "Courier New", monospace; font-size: 12px; width: 80mm; margin: 0; padding: 10px; color: #000; } h2, p { text-align: center; margin: 0; } hr { border-top: 1px dashed #000; margin: 8px 0; } table { width:100%; } .right { text-align:right; } .bold { font-weight:bold; }</style></head><body>';
+            html += '<h2 class="bold">AULIA APOTEK KLINIK</h2>';
+            html += '<p>Jl. Contoh Alamat No. 123, Kota</p><hr>';
+            html += '<table><tr><td>No</td><td>: ' + data.id.substring(0, 8).toUpperCase() + '</td></tr>';
+            html += '<tr><td>Tgl</td><td>: ' + tgl + '</td></tr></table><hr>';
+            html += '<table>';
+            data.items.forEach(function(item) {
+                html += '<tr><td colspan="2">' + Utils.escapeHtml(item.namaObat || '') + '</td></tr>';
+                html += '<tr><td>' + item.jumlah + ' x ' + Utils.formatRupiah(item.hargaJual) + '</td><td class="right">' + Utils.formatRupiah(item.jumlah * item.hargaJual) + '</td></tr>';
+            });
+            html += '</table><hr>';
+            html += '<table><tr class="bold"><td>TOTAL</td><td class="right">' + Utils.formatRupiah(data.totalAkhir) + '</td></tr></table><hr>';
+            html += '<p>Terima Kasih</p><p>Semoga Lekas Sembuh</p>';
+            html += '<script>window.onload = function() { window.print(); }<\/script></body></html>';
+            
+            w.document.open();
+            w.document.write(html);
+            w.document.close();
+        });
     }
 };

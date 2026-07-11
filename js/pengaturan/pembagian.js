@@ -251,9 +251,11 @@ window.AppPengaturanPembagian = {
         html += '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4 pr-8">';
         
         // Modifikasi Dropdown Dokter agar menampilkan NIP
+        // FIX (permintaan user): dokter yang tampil hanya karyawan dengan divisi/departemen "Dokter"
+        // (bukan lagi "Umum" atau dropdown divisi Klinik).
         var ddHtml = '<select id="rk-doc-' + index + '" class="w-full px-2 py-2 border border-slate-300 dark:bg-slate-700 dark:text-white rounded-lg text-sm"><option value="">-- Pilih Dokter --</option>';
         this.karyawanList.forEach(k => {
-            if(k.departemen === 'Klinik' || k.jabatan === 'Dokter') {
+            if(k.departemen === 'Dokter') {
                 var sel = (k.id === doc.dokterId) ? ' selected' : '';
                 var nipLabel = k.nip ? ' [' + k.nip + ']' : '';
                 ddHtml += '<option value="' + k.id + '"' + sel + '>' + Utils.escapeHtml(k.nama) + nipLabel + '</option>';

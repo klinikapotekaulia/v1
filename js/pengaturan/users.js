@@ -22,8 +22,8 @@ window.AppPengaturanUsers = {
 
     init: function() {
         // Keamanan tambahan: Cek role
-        if (window.currentRole !== 'admin' && window.currentRole !== 'keuangan') {
-            document.getElementById('user-list').innerHTML = '<div class="bg-red-50 text-red-600 p-4 rounded-lg">Akses Ditolak. Halaman ini khusus Admin/Keuangan.</div>';
+        if (window.currentRole !== 'keuangan') {
+            document.getElementById('user-list').innerHTML = '<div class="bg-red-50 text-red-600 p-4 rounded-lg">Akses Ditolak. Halaman ini khusus Keuangan (Owner).</div>';
             return;
         }
 
@@ -53,6 +53,8 @@ window.AppPengaturanUsers = {
             if(u.role === 'admin') roleBadge = '<span class="text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full">Admin</span>';
             else if(u.role === 'keuangan') roleBadge = '<span class="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">Keuangan</span>';
             else if(u.role === 'klinik') roleBadge = '<span class="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">Klinik</span>';
+            // FIX (permintaan user): role baru khusus akun Dokter (beda dari staf Klinik biasa).
+            else if(u.role === 'dokter') roleBadge = '<span class="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">Dokter</span>';
             else roleBadge = '<span class="text-xs bg-teal-50 text-teal-600 px-2 py-0.5 rounded-full">Apotek</span>';
 
             var statusBadge = u.status === 'aktif' ? 
@@ -99,6 +101,7 @@ window.AppPengaturanUsers = {
         html += '<div><label class="block text-sm font-medium text-slate-700 mb-1">Role *</label><select id="fu-role" required class="w-full px-3 py-2 border border-slate-300 dark:bg-slate-700 dark:text-white rounded-lg text-sm">';
         html += '<option value="apotek"' + (u.role==='apotek'?' selected':'') + '>Apotek</option>';
         html += '<option value="klinik"' + (u.role==='klinik'?' selected':'') + '>Klinik</option>';
+        html += '<option value="dokter"' + (u.role==='dokter'?' selected':'') + '>Dokter</option>';
         html += '<option value="admin"' + (u.role==='admin'?' selected':'') + '>Admin (Kepala)</option>';
         html += '<option value="keuangan"' + (u.role==='keuangan'?' selected':'') + '>Keuangan (PSA)</option>';
         html += '</select></div>';
@@ -106,10 +109,10 @@ window.AppPengaturanUsers = {
         html += '<div><label class="block text-sm font-medium text-slate-700 mb-1">Status</label><select id="fu-status" class="w-full px-3 py-2 border border-slate-300 dark:bg-slate-700 dark:text-white rounded-lg text-sm"><option value="aktif"' + (u.status!=='nonaktif'?' selected':'') + '>Aktif</option><option value="nonaktif"' + (u.status==='nonaktif'?' selected':'') + '>Nonaktif</option></select></div>';
         html += '</div>';
 
-        // FITUR BARU: Tema tampilan per-akun (mis. Windows 98 khusus akun tertentu)
+        // FITUR BARU: Tema tampilan per-akun (mis. Vaporwave khusus akun tertentu)
         html += '<div><label class="block text-sm font-medium text-slate-700 mb-1">Tema Tampilan</label><select id="fu-tema" class="w-full px-3 py-2 border border-slate-300 dark:bg-slate-700 dark:text-white rounded-lg text-sm">';
         html += '<option value="default"' + ((!u.tema || u.tema==='default')?' selected':'') + '>Default (Modern)</option>';
-        html += '<option value="win98"' + (u.tema==='win98'?' selected':'') + '>Retro — Windows 98</option>';
+        html += '<option value="win98"' + (u.tema==='win98'?' selected':'') + '>Vaporwave — Neon Gradient</option>';
         html += '</select><p class="text-xs text-slate-400 mt-1">Tampilan khusus untuk akun ini saja, tidak memengaruhi akun lain.</p></div>';
 
         html += '<div class="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-700">';

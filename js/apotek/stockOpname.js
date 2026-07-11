@@ -95,7 +95,7 @@ window.AppApotekStockOpname = {
             html += '<tr class="border-t border-slate-100 dark:border-slate-700">';
             html += '<td class="px-4 py-3"><p class="font-medium text-gray-800 dark:text-white">' + Utils.escapeHtml(o.namaObat || '-') + '</p><p class="text-xs text-slate-400 font-mono">' + Utils.escapeHtml(o.kodeObat || '-') + '</p></td>';
             html += '<td class="px-4 py-3 text-center font-medium">' + stokSistem + '</td>';
-            html += '<td class="px-4 py-3 text-center"><input type="number" id="so-fisik-' + realIdx + '" value="' + (stokFisik !== '' ? stokFisik : '') + '" placeholder="Isi..." class="w-20 px-2 py-1.5 border border-slate-300 dark:bg-slate-700 dark:text-white rounded-lg text-sm text-center" oninput="AppApotekStockOpname.hitungSelisih(' + realIdx + ')"></td>';
+            html += '<td class="px-4 py-3 text-center"><input type="number" id="so-fisik-' + realIdx + '" value="' + (stokFisik !== '' ? stokFisik : '') + '" placeholder="Isi..." min="0" class="w-20 px-2 py-1.5 border border-slate-300 dark:bg-slate-700 dark:text-white rounded-lg text-sm text-center" oninput="AppApotekStockOpname.hitungSelisih(' + realIdx + ')"></td>';
             html += '<td class="px-4 py-3 text-center ' + selisihClass + '" id="so-selisih-' + realIdx + '">' + selisih + '</td>';
             html += '</tr>';
         });
@@ -110,6 +110,12 @@ window.AppApotekStockOpname = {
         var obat = this.data[idx];
         var stokSistem = obat.stok || 0;
         var stokFisik = inputEl.value === '' ? '' : parseInt(inputEl.value);
+
+        if (stokFisik !== '' && stokFisik < 0) {
+            Utils.toast('Stok fisik tidak boleh negatif', 'error');
+            inputEl.value = '';
+            stokFisik = '';
+        }
 
         obat.stokFisik = stokFisik;
 

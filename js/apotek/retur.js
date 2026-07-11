@@ -293,23 +293,48 @@ window.AppApotekRetur = {
         var retur = this.data.find(function(r) { return r.id === id; });
         if (!retur) return;
 
-        var batch = db.batch();
         var returRef = db.collection('retur').doc(id);
         var obatRef  = db.collection('obat').doc(retur.obatId);
+        var qty      = retur.qty || 0;
 
-        batch.update(returRef, {
-            status: 'dikonfirmasi',
-            dikonfirmasiOleh: window.currentUserName || 'Admin',
-            dikonfirmasiAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        // FIX: pakai increment negatif agar tidak race condition dengan transaksi lain
-        batch.update(obatRef, {
-            stok: firebase.firestore.FieldValue.increment(-(retur.qty || 0)),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        // FIX (KEAMANAN STOK): increment negatif via batch tidak membaca & memvalidasi
+        // stok terkini, jadi stok bisa jadi minus kalau ada retur/transaksi lain yang
+        // berjalan bersamaan. Ganti ke runTransaction(): baca stok & status retur
+        // terbaru dulu, validasi, baru tulis -- atomik dan tahan race condition.
+        db.runTransaction(function(tx) {
+            return Promise.all([tx.get(returRef), tx.get(obatRef)]).then(function(res) {
+                var returSnap = res[0];
+                var obatSnap  = res[1];
 
-        batch.commit().then(function() {
-            Utils.toast('Retur dikonfirmasi. Stok telah dikurangi ' + retur.qty + ' ' + (retur.satuan || '') + '.', 'success');
+                if (!returSnap.exists) throw new Error('Data retur tidak ditemukan.');
+                if (returSnap.data().status !== 'menunggu_konfirmasi') {
+                    throw new Error('Retur ini sudah diproses sebelumnya.');
+                }
+                if (!obatSnap.exists) throw new Error('Obat terkait tidak ditemukan.');
+
+                var stokSaatIni = obatSnap.data().stok || 0;
+                if (stokSaatIni < qty) {
+                    throw new Error('Stok obat tidak cukup untuk retur ini. Tersisa ' +
+                        stokSaatIni + ', dibutuhkan ' + qty + '.');
+                }
+
+                tx.update(returRef, {
+                    status: 'dikonfirmasi',
+                    dikonfirmasiOleh: window.currentUserName || 'Admin',
+                    dikonfirmasiAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                tx.update(obatRef, {
+                    stok: stokSaatIni - qty,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            });
+        }).then(function() {
+            Utils.toast('Retur dikonfirmasi. Stok telah dikurangi ' + qty + ' ' + (retur.satuan || '') + '.', 'success');
+            AuditLog.catat({
+                aksi: 'approve', modul: 'Retur Obat', koleksi: 'retur', targetId: id,
+                deskripsi: 'Konfirmasi retur: ' + retur.namaObat + ' (' + retur.supplier + ')',
+                nominal: retur.totalNilai
+            });
             AppApotekRetur.init();
         }).catch(function(err) {
             Utils.toast('Gagal konfirmasi: ' + err.message, 'error');

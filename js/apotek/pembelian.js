@@ -103,7 +103,7 @@ window.AppApotekPembelian = {
         html += '</select></div>';
 
         html += '<div class="w-full md:w-1/6"><label class="block text-xs text-slate-500 mb-1">Qty</label><input type="number" id="beli-qty-' + idx + '" value="1" min="1" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm text-center" oninput="AppApotekPembelian.hitungTotal()"></div>';
-        html += '<div class="w-full md:w-1/6"><label class="block text-xs text-slate-500 mb-1">Harga Beli</label><input type="number" id="beli-harga-' + idx + '" value="0" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm text-right" oninput="AppApotekPembelian.hitungTotal()"></div>';
+        html += '<div class="w-full md:w-1/6"><label class="block text-xs text-slate-500 mb-1">Harga Beli</label><input type="number" id="beli-harga-' + idx + '" value="0" min="0" step="any" required class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm text-right" oninput="AppApotekPembelian.hitungTotal()"></div>';
         html += '<div class="w-full md:w-1/6"><label class="block text-xs text-slate-500 mb-1">Subtotal</label><div id="beli-sub-' + idx + '" class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 rounded-lg text-sm text-right font-medium text-slate-600">Rp 0</div></div>';
         
         html += '<button type="button" onclick="AppApotekPembelian.removeItem(' + idx + ')" class="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg self-end md:self-center"><i data-lucide="trash-2" class="w-4 h-4"></i></button>';
@@ -169,21 +169,32 @@ window.AppApotekPembelian = {
         }
 
         var items = [];
+        var itemInvalid = false;
         var rows = document.querySelectorAll('[id^="beli-row-"]');
         rows.forEach(row => {
             var idx = row.id.split('-').pop();
             var obatId = document.getElementById('beli-obat-' + idx)?.value;
             if (obatId) {
                 var obat = this.obatList.find(o => o.id === obatId);
+                var qty = parseInt(document.getElementById('beli-qty-' + idx).value);
+                var hargaBeli = parseInt(document.getElementById('beli-harga-' + idx).value);
+                if (isNaN(qty) || qty < 1 || isNaN(hargaBeli) || hargaBeli < 0) {
+                    itemInvalid = true;
+                }
                 items.push({
                     obatId: obatId,
                     namaObat: obat ? obat.namaObat : '-',
                     kodeObat: obat ? obat.kodeObat : '-',
-                    qty: parseInt(document.getElementById('beli-qty-' + idx).value) || 0,
-                    hargaBeli: parseInt(document.getElementById('beli-harga-' + idx).value) || 0
+                    qty: qty || 0,
+                    hargaBeli: hargaBeli || 0
                 });
             }
         });
+
+        if (itemInvalid) {
+            Utils.toast('Qty minimal 1 dan Harga Beli tidak boleh negatif', 'error');
+            return;
+        }
 
         if (items.length === 0) {
             Utils.toast('Tambahkan minimal 1 obat', 'error');
@@ -215,6 +226,11 @@ window.AppApotekPembelian = {
         });
         batch.commit().then(() => {
             Utils.toast('Pembelian berhasil disimpan! Stok obat sudah bertambah.', 'success');
+            AuditLog.catat({
+                aksi: 'tambah', modul: 'Pembelian Stok', koleksi: 'pembelian', targetId: pRef.id,
+                deskripsi: 'Pembelian dari ' + supplier + ' (Faktur ' + noFaktur + ', ' + metode + ')',
+                nominal: totalHarga
+            });
             AppApotekPembelian.init();
         }).catch(err => {
             Utils.toast('Gagal menyimpan: ' + err.message, 'error');

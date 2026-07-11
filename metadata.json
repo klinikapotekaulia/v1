@@ -1,0 +1,8 @@
+{
+  "name": "Apotek & Klinik Aulia",
+  "description": "Aplikasi Apotek & Klinik Aulia untuk manajemen transaksi, rekam medis, keuangan, dan data obat/pasien",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

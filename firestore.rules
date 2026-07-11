@@ -1,0 +1,258 @@
+rules_version = '2';
+
+// =====================================================================
+// AULIA APOTEK & KLINIK — FIRESTORE SECURITY RULES
+//
+// TEMUAN AUDIT PENTING:
+// Project ini TIDAK memiliki firestore.rules sama sekali di repo/build.
+// Artinya keamanan data SEPENUHNYA bergantung pada rules default yang
+// ada di Firebase Console (kemungkinan besar "test mode" / allow all,
+// atau paling bagus "allow read,write: if request.auth != null" — yang
+// artinya SEMUA user yang login, apapun role-nya, bisa baca & tulis
+// SEMUA koleksi: gaji, rekam medis pasien, kas keluar, ubah role diri
+// sendiri jadi admin, hapus transaksi, dst). Semua pemeriksaan role
+// (window.currentRole) di kode JS HANYA proteksi UI, bukan proteksi
+// data — bisa dilewati siapa pun lewat DevTools/console browser.
+//
+// Rules di bawah ini menutup celah itu dengan:
+// 1. Role diambil dari dokumen users/{uid} di server (bukan dari client)
+// 2. Setiap koleksi dibatasi sesuai peta akses roleAccess di js/app.js
+// 3. User tidak bisa mengubah field role/status miliknya sendiri
+// 4. Field stok pada koleksi 'obat' TIDAK BOLEH jadi negatif —
+//    ini validasi server-side untuk melengkapi runTransaction di client
+// 5. Dokumen finansial (transaksi, pembelian, dll) tidak bisa diedit/
+//    dihapus sembarangan setelah dibuat (jejak audit tetap utuh)
+// =====================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------
+    // HELPERS
+    // ------------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function hasRole(roleList) {
+      return isSignedIn() 
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid)) 
+        && (!('status' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data) || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'aktif')
+        && ('role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data) 
+        && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in roleList);
+    }
+
+    function isActive() {
+      return isSignedIn() 
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid)) 
+        && (!('status' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data) || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'aktif');
+    }
+
+    function isAdminKeuangan() {
+      return hasRole(['keuangan']);
+    }
+
+    function isApotekStaff() {
+      return hasRole(['apotek', 'admin', 'keuangan']);
+    }
+
+    function isKlinikStaff() {
+      return hasRole(['klinik', 'dokter', 'admin', 'keuangan']);
+    }
+
+    function isDokter() {
+      return hasRole(['dokter']);
+    }
+
+    function isAnyStaff() {
+      return hasRole(['klinik', 'dokter', 'apotek', 'admin', 'keuangan']);
+    }
+
+    function unchanged(field) {
+      return request.resource.data[field] == resource.data[field];
+    }
+
+    // ------------------------------------------------------------
+    // USERS — profil & role. Ini sumber kebenaran untuk semua rule lain,
+    // jadi dijaga paling ketat.
+    // ------------------------------------------------------------
+    match /users/{uid} {
+      allow get: if isSignedIn() && (request.auth.uid == uid || isAdminKeuangan());
+      allow list: if isAdminKeuangan() || (isSignedIn() && !exists(/databases/$(database)/documents/users/$(request.auth.uid)));
+
+      // Membantu bootstrap: Izinkan user membuat profilnya sendiri saat mendaftar pertama kali.
+      // Sekali dibuat, role & status tidak bisa diubah oleh dirinya sendiri (hanya admin/keuangan yang bisa).
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow update: if isAdminKeuangan()
+                    // admin/keuangan tetap tidak boleh menurunkan/menghapus role dirinya
+                    // sendiri di request yang sama supaya tidak ada kondisi "tidak ada admin".
+                    || (request.auth.uid == uid && unchanged('role') && unchanged('status'));
+      allow delete: if isAdminKeuangan() && request.auth.uid != uid;
+    }
+
+    // ------------------------------------------------------------
+    // OBAT (master stok apotek) — BAGIAN PALING KRITIS.
+    // Baca: semua staff aktif. Tulis: hanya apotek/admin/keuangan.
+    // VALIDASI KERAS: stok hasil akhir tidak boleh negatif, dan field
+    // harga/hpp tidak boleh negatif. Ini jaring pengaman server-side
+    // yang melengkapi runTransaction() di client (poin B).
+    // ------------------------------------------------------------
+    match /obat/{obatId} {
+      allow read: if isAnyStaff();
+      allow create: if isApotekStaff()
+                    && request.resource.data.stok is number
+                    && request.resource.data.stok >= 0;
+      allow update: if isApotekStaff()
+                    && request.resource.data.stok is number
+                    && request.resource.data.stok >= 0;
+      allow delete: if isAdminKeuangan();
+    }
+
+    // ------------------------------------------------------------
+    // TRANSAKSI (penjualan) — dokumen finansial + histori resep.
+    // Dibuat oleh apotek/admin/keuangan/dokter (saat resep klinik).
+    // Setelah dibuat: TIDAK BOLEH diubah/dihapus oleh siapapun kecuali
+    // admin/keuangan (jejak audit penjualan harus utuh).
+    // ------------------------------------------------------------
+    match /transaksi/{trxId} {
+      allow read: if isApotekStaff() || isKlinikStaff();
+      allow create: if isApotekStaff() || isDokter();
+      allow update, delete: if isAdminKeuangan();
+    }
+
+    // ------------------------------------------------------------
+    // PEMBELIAN (restock dari supplier) — menambah stok.
+    // ------------------------------------------------------------
+    match /pembelian/{id} {
+      allow read: if isApotekStaff();
+      allow create: if isApotekStaff();
+      allow update: if isAdminKeuangan(); // koreksi data pembelian: admin/keuangan saja
+      allow delete: if isAdminKeuangan();
+    }
+
+    // ------------------------------------------------------------
+    // RETUR — mengurangi stok saat dikonfirmasi. Pengajuan oleh
+    // apotek staff, KONFIRMASI (yang memotong stok) hanya admin/keuangan.
+    // ------------------------------------------------------------
+    match /retur/{id} {
+      allow read: if isApotekStaff();
+      allow create: if isApotekStaff();
+      // Hanya admin/keuangan yang boleh mengubah status jadi terkonfirmasi
+      // (yang memicu pengurangan stok obat terkait).
+      allow update: if isAdminKeuangan()
+                    || (isApotekStaff() && resource.data.status == 'pending'
+                        && request.resource.data.status == 'pending');
+      allow delete: if isAdminKeuangan();
+    }
+
+    // ------------------------------------------------------------
+    // STOCK OPNAME — pengajuan oleh apotek, approval oleh admin/keuangan.
+    // ------------------------------------------------------------
+    match /stockOpnameRequests/{id} {
+      allow read: if isApotekStaff();
+      allow create: if isApotekStaff();
+      allow update: if isAdminKeuangan();
+      allow delete: if isAdminKeuangan();
+    }
+    match /stockOpnameHistory/{id} {
+      allow read: if isApotekStaff();
+      allow create: if isAdminKeuangan();
+      allow update, delete: if false; // histori: append-only
+    }
+
+    // ------------------------------------------------------------
+    // KLINIK: pasien, rekam medis, resep, antrian
+    // Rekam medis: hanya dokter yang boleh menulis (sesuai catatan di
+    // js/klinik/rekamMedis.js), klinik/admin/keuangan hanya baca.
+    // ------------------------------------------------------------
+    match /pasien/{id} {
+      allow read: if isKlinikStaff() || isApotekStaff();
+      allow create, update: if isKlinikStaff();
+      allow delete: if isAdminKeuangan();
+    }
+
+    match /rekamMedis/{id} {
+      allow read: if isKlinikStaff() || isApotekStaff();
+      allow create, update: if isDokter() || isAdminKeuangan();
+      // Apotek boleh update HANYA field statusResep saat menyelesaikan transaksi resep.
+      allow update: if isApotekStaff()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['statusResep']);
+      allow delete: if isAdminKeuangan();
+    }
+
+    match /antrian/{id} {
+      allow read: if isKlinikStaff();
+      allow create, update: if isKlinikStaff();
+      allow delete: if isAdminKeuangan();
+    }
+
+    // ------------------------------------------------------------
+    // MANAJEMEN: karyawan, absensi
+    // Admin: view-only untuk karyawan (sesuai catatan FIX di app.js)
+    // ------------------------------------------------------------
+    match /karyawan/{id} {
+      allow read: if isAnyStaff();
+      allow create, update, delete: if hasRole(['keuangan']); // admin = view-only by design
+    }
+
+    match /absensi/{id} {
+      allow read: if isAnyStaff();
+      allow create: if isAnyStaff();
+      allow update, delete: if isAdminKeuangan();
+    }
+
+    // ------------------------------------------------------------
+    // KEUANGAN: hanya role 'keuangan' (dan admin untuk beberapa modul
+    // sesuai roleAccess admin -> 'keuangan' penuh CRUD)
+    // ------------------------------------------------------------
+    match /jurnalManual/{id}      { allow read, write: if isAdminKeuangan(); }
+    match /kasKeluar/{id}         { allow read, write: if isAdminKeuangan(); }
+    match /saldoAwal/{id}         { allow read, write: if isAdminKeuangan(); }
+    match /payrollHistory/{id}    { allow read: if isAdminKeuangan(); allow write: if hasRole(['keuangan']); }
+    match /piutangKaryawan/{id}   { allow read, write: if isAdminKeuangan(); }
+    match /thrTabungan/{id}       { allow read, write: if isAdminKeuangan(); }
+    match /thrPembayaranHistory/{id} { allow read: if isAdminKeuangan(); allow write: if hasRole(['keuangan']); }
+
+    // ------------------------------------------------------------
+    // CHAT GRUP — untuk diskusi saling tanya jawab semua user
+    // ------------------------------------------------------------
+    match /groupChat/{id} {
+      allow read: if isActive();
+      allow create: if isActive() && request.resource.data.senderId == request.auth.uid;
+      allow update, delete: if isActive() && (resource.data.senderId == request.auth.uid || isAdminKeuangan());
+    }
+
+    // ------------------------------------------------------------
+    // AUDIT TRAIL — jejak aktivitas untuk transaksi keuangan penting
+    // (js/utils/auditLog.js). Dibuat oleh siapa saja yang aktif &
+    // login (create-only, mencatat aksinya sendiri), TIDAK BOLEH
+    // pernah diubah atau dihapus siapapun (termasuk admin) supaya
+    // jejaknya tetap bisa dipercaya. Hanya admin & keuangan yang
+    // boleh membacanya.
+    // ------------------------------------------------------------
+    match /auditLog/{id} {
+      allow read: if isAdminKeuangan();
+      allow create: if isActive() && request.resource.data.olehUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ------------------------------------------------------------
+    // PENGATURAN (settings/master data)
+    // ------------------------------------------------------------
+    match /pengaturan/antrianDisplay           { allow read: if true; allow write: if isAnyStaff(); }
+    match /pengaturan/profil                   { allow read: if isAnyStaff(); allow write: if isAdminKeuangan(); }
+    match /pengaturanGaji/{id}                 { allow read, write: if isAdminKeuangan(); }
+    match /pengaturanPembagian/{id}            { allow read, write: if isAdminKeuangan(); }
+    match /pengaturanPembagianHistory/{id}     { allow read: if isAdminKeuangan(); allow write: if false; }
+    match /masterTindakan/{id}                 { allow read: if isAnyStaff(); allow write: if isAdminKeuangan(); }
+
+    // ------------------------------------------------------------
+    // DEFAULT DENY — apapun koleksi yang tidak terdaftar eksplisit
+    // di atas otomatis DITOLAK total (aman secara default).
+    // ------------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

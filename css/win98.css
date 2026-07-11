@@ -1,189 +1,296 @@
 /**
  * css/win98.css
- * FITUR BARU: Tema retro "Windows 98" — hanya aktif untuk akun yang field
- * `tema` di collection Firestore `users` diset ke "win98" (lihat Pengaturan →
- * Kelola Users). Semua rule di sini di-scope di bawah class `.theme-win98`
- * pada <body>, jadi tidak memengaruhi akun lain sama sekali.
- *
- * Catatan: aplikasi ini pakai Tailwind CDN (utility classes di-generate
- * langsung dari markup), jadi pendekatan paling aman adalah menimpa utility
- * class yang paling sering dipakai (bg-white, rounded-xl, shadow, dsb) lewat
- * selector bertingkat `.theme-win98 .kelas-tailwind`, yang otomatis punya
- * spesifisitas lebih tinggi daripada `.kelas-tailwind` sendirian sehingga
- * menang tanpa perlu !important di semua tempat.
+ * TEMA BARU: Vaporwave — Neon Gradient & Glassmorphism
+ * Terinspirasi dari desain UI modern bertema neon, gradasi futuristik, dan panel kaca.
+ * Hanya aktif untuk akun yang pilihan temanya diset ke "win98" (Vaporwave).
  */
 
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
 .theme-win98, .theme-win98 * {
-    font-family: 'Tahoma', 'Segoe UI', 'MS Sans Serif', Arial, sans-serif !important;
+    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif !important;
 }
 
+/* ── Background Utama: Gradasi Neon & Grid Futuristik ── */
 .theme-win98 {
-    background-color: #008080 !important; /* Teal klasik desktop Win98 */
+    background: linear-gradient(135deg, #0b042b 0%, #15093b 35%, #4c0757 75%, #7e0542 100%) !important;
+    background-image: 
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(135deg, #0b042b 0%, #15093b 35%, #4c0757 75%, #7e0542 100%) !important;
+    background-size: 30px 30px, 30px 30px, 100% 100% !important;
+    background-attachment: fixed !important;
+    color: #f8fafc !important;
 }
 
-/* ── Utility: bevel 3D ala Windows 98 ── */
-.theme-win98 .win98-raised {
-    border-style: solid;
-    border-width: 2px;
-    border-color: #ffffff #808080 #808080 #ffffff;
-    box-shadow: inset -1px -1px 0 #000, inset 1px 1px 0 #dfdfdf;
-}
-.theme-win98 .win98-sunken {
-    border-style: solid;
-    border-width: 2px;
-    border-color: #808080 #ffffff #ffffff #808080;
-    box-shadow: inset -1px -1px 0 #dfdfdf, inset 1px 1px 0 #000;
-}
-
-/* ── Sidebar & Header jadi "window" abu-abu klasik ── */
+/* ── Panel Utama & Kartu (Glassmorphism Transparan) ── */
 .theme-win98 #sidebar,
 .theme-win98 #mobile-sidebar,
 .theme-win98 header,
 .theme-win98 .bg-white,
-.theme-win98 .dark\:bg-slate-800 {
-    background-color: #c0c0c0 !important;
-    color: #000 !important;
-    border-radius: 0 !important;
-    border-color: #808080 #ffffff #ffffff #808080 !important;
-    border-style: solid !important;
-    box-shadow: inset -1px -1px 0 #000, inset 1px 1px 0 #dfdfdf !important;
+.theme-win98 .dark\:bg-slate-800,
+.theme-win98 .bg-slate-50,
+.theme-win98 .dark\:bg-slate-900,
+.theme-win98 .card {
+    background: rgba(18, 11, 46, 0.6) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    color: #f1f5f9 !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 10px 32px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+    border-radius: 14px !important;
 }
 
-.theme-win98 .text-gray-800, .theme-win98 .dark\:text-white,
-.theme-win98 .text-gray-200, .theme-win98 .text-slate-600,
-.theme-win98 .text-slate-700 {
-    color: #000 !important;
+/* Override Text Colors */
+.theme-win98 .text-gray-800, 
+.theme-win98 .dark\:text-white,
+.theme-win98 .text-gray-200, 
+.theme-win98 .text-slate-600,
+.theme-win98 .text-slate-700,
+.theme-win98 .text-slate-800,
+.theme-win98 .text-slate-900,
+.theme-win98 .text-gray-700 {
+    color: #f1f5f9 !important;
 }
 
-/* Header sidebar (logo & judul) jadi title bar biru klasik */
+.theme-win98 .text-slate-400,
+.theme-win98 .text-slate-500,
+.theme-win98 .text-slate-300,
+.theme-win98 .text-gray-400,
+.theme-win98 .text-gray-500 {
+    color: #cbd5e1 !important;
+}
+
+/* Header Sidebar (Gaya Title Bar Gradasi Neon) */
 .theme-win98 #sidebar > div:first-child,
 .theme-win98 #mobile-sidebar > div:first-child {
-    background: linear-gradient(90deg, #000080, #1084d0) !important;
-    border-bottom: 2px solid #808080 !important;
+    background: linear-gradient(90deg, #7e0542 0%, #4c0757 50%, #15093b 100%) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.18) !important;
+    border-top-left-radius: 14px !important;
+    border-top-right-radius: 14px !important;
 }
 .theme-win98 #sidebar > div:first-child h1,
 .theme-win98 #mobile-sidebar > div:first-child h1 {
-    color: #fff !important;
+    color: #ffffff !important;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.4) !important;
 }
 .theme-win98 #sidebar > div:first-child p,
 .theme-win98 #mobile-sidebar > div:first-child p {
-    color: #d0d0ff !important;
+    color: #cbd5e1 !important;
 }
 
-/* Semua sudut membulat dipatahkan supaya kotak-kotak khas Win98 */
+/* Sudut Membulat yang Konsisten */
 .theme-win98 .rounded-xl,
 .theme-win98 .rounded-lg,
 .theme-win98 .rounded-md,
-.theme-win98 .rounded-full,
 .theme-win98 .rounded {
-    border-radius: 0 !important;
+    border-radius: 12px !important;
+}
+.theme-win98 .rounded-full {
+    border-radius: 9999px !important;
 }
 
-/* Hilangkan shadow modern, ganti bevel */
-.theme-win98 .shadow, .theme-win98 .shadow-md,
-.theme-win98 .shadow-lg, .theme-win98 .shadow-xl,
+/* Efek Glow & Shadow */
+.theme-win98 .shadow, 
+.theme-win98 .shadow-md,
+.theme-win98 .shadow-lg, 
+.theme-win98 .shadow-xl, 
 .theme-win98 .shadow-2xl {
-    box-shadow: inset -1px -1px 0 #000, inset 1px 1px 0 #dfdfdf !important;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 15px rgba(126, 5, 66, 0.15) !important;
 }
 
-/* Border generik jadi abu bevel */
-.theme-win98 .border, .theme-win98 .border-slate-200,
-.theme-win98 .dark\:border-slate-700, .theme-win98 .border-slate-100 {
-    border-color: #808080 !important;
+/* Border Halus */
+.theme-win98 .border, 
+.theme-win98 .border-slate-200,
+.theme-win98 .dark\:border-slate-700, 
+.theme-win98 .border-slate-100 {
+    border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-/* ── Tombol ala Windows 98 (kotak abu, bevel, teks hitam) ── */
+/* ── Tombol Utama (Gradasi Pink/Magenta Glow) ── */
 .theme-win98 button,
 .theme-win98 .bg-primary-600,
 .theme-win98 .bg-green-600,
 .theme-win98 .bg-red-600,
 .theme-win98 .bg-amber-500,
 .theme-win98 .bg-slate-100 {
-    background-color: #c0c0c0 !important;
-    color: #000 !important;
-    border-style: solid !important;
-    border-width: 2px !important;
-    border-color: #ffffff #808080 #808080 #ffffff !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    text-shadow: none !important;
+    background: linear-gradient(135deg, #4c0757 0%, #7e0542 100%) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 4px 14px rgba(126, 5, 66, 0.35) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
-.theme-win98 button:hover {
-    background-color: #d4d4d4 !important;
+.theme-win98 button:hover,
+.theme-win98 .bg-primary-600:hover,
+.theme-win98 .bg-green-600:hover,
+.theme-win98 .bg-red-600:hover,
+.theme-win98 .bg-amber-500:hover {
+    background: linear-gradient(135deg, #5b0968 0%, #94074d 100%) !important;
+    box-shadow: 0 6px 20px rgba(126, 5, 66, 0.5), 0 0 10px rgba(255, 255, 255, 0.2) !important;
+    transform: translateY(-1px) !important;
 }
 .theme-win98 button:active {
-    border-color: #808080 #ffffff #ffffff #808080 !important;
+    transform: translateY(1px) !important;
 }
 
-/* ── Input & Select ala Win98 (sunken/inset border) ── */
+/* Desain Khusus Tombol Navigasi Sidebar */
+.theme-win98 .nav-btn {
+    background: transparent !important;
+    color: #cbd5e1 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 8px !important;
+    text-shadow: none !important;
+    transition: all 0.2s ease !important;
+}
+.theme-win98 .nav-btn:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #ffffff !important;
+    transform: translateX(4px) !important;
+    box-shadow: none !important;
+}
+.theme-win98 .nav-btn[class*="bg-primary-50"],
+.theme-win98 .nav-btn.bg-primary-50 {
+    background: linear-gradient(90deg, rgba(126, 5, 66, 0.3) 0%, rgba(76, 7, 87, 0.3) 100%) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    box-shadow: 0 4px 12px rgba(126, 5, 66, 0.2) !important;
+}
+
+/* ── Input & Select (Gelap Transparan + Magenta Glow Focus) ── */
 .theme-win98 input,
 .theme-win98 select,
 .theme-win98 textarea {
-    background-color: #fff !important;
-    color: #000 !important;
-    border-radius: 0 !important;
-    border-style: solid !important;
-    border-width: 2px !important;
-    border-color: #808080 #ffffff #ffffff #808080 !important;
-    box-shadow: none !important;
+    background: rgba(11, 4, 43, 0.5) !important;
+    color: #ffffff !important;
+    border-radius: 8px !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+    transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+.theme-win98 input:focus,
+.theme-win98 select:focus,
+.theme-win98 textarea:focus {
+    border-color: #ec4899 !important;
+    box-shadow: 0 0 10px rgba(236, 72, 153, 0.45) !important;
+    outline: none !important;
+}
+.theme-win98 select option {
+    background-color: #15093b !important;
+    color: #ffffff !important;
 }
 
-/* ── Tabel klasik: grid tegas, header abu ── */
-.theme-win98 table { border-collapse: collapse !important; }
-.theme-win98 thead tr, .theme-win98 .bg-slate-50, .theme-win98 .dark\:bg-slate-900 {
-    background-color: #c0c0c0 !important;
-    color: #000 !important;
+/* ── Tabel Kaca Transparan & Header Gradasi ── */
+.theme-win98 table {
+    border-collapse: collapse !important;
+    background: rgba(11, 4, 43, 0.25) !important;
+    border-radius: 12px !important;
+    overflow: hidden !important;
 }
-.theme-win98 th, .theme-win98 td {
-    border: 1px solid #808080 !important;
+.theme-win98 thead tr, 
+.theme-win98 .bg-slate-50, 
+.theme-win98 .dark\:bg-slate-900 {
+    background: linear-gradient(90deg, #4c0757 0%, #15093b 100%) !important;
+    color: #ffffff !important;
+}
+.theme-win98 th {
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.05em !important;
+    color: #ffffff !important;
+}
+.theme-win98 td {
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    color: #e2e8f0 !important;
+}
+.theme-win98 tbody tr:hover {
+    background: rgba(255, 255, 255, 0.05) !important;
 }
 
-/* ── Badge/pill jadi kotak tegas ── */
-.theme-win98 [class*="rounded-full"] {
-    border-radius: 0 !important;
-}
-
-/* ── Modal jadi jendela klasik lengkap dengan "title bar" biru ── */
+/* ── Modals / Dialog Jendela Apung ── */
 .theme-win98 #global-modal > div {
-    border-radius: 0 !important;
-    border-style: solid !important;
-    border-width: 2px !important;
-    border-color: #ffffff #808080 #808080 #ffffff !important;
-    box-shadow: inset -1px -1px 0 #000, inset 1px 1px 0 #dfdfdf, 4px 4px 0 rgba(0,0,0,0.4) !important;
+    background: rgba(18, 11, 46, 0.9) !important;
+    backdrop-filter: blur(25px) !important;
+    border-radius: 16px !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), 0 0 30px rgba(236, 72, 153, 0.15) !important;
 }
 .theme-win98 #global-modal h3 {
-    background: linear-gradient(90deg, #000080, #1084d0) !important;
-    color: #fff !important;
+    background: linear-gradient(90deg, #7e0542 0%, #4c0757 100%) !important;
+    color: #ffffff !important;
     margin: -24px -24px 16px -24px !important;
-    padding: 6px 10px !important;
+    padding: 12px 20px !important;
+    border-top-left-radius: 14px !important;
+    border-top-right-radius: 14px !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 
-/* ── Scrollbar klasik abu kotak ── */
-.theme-win98 ::-webkit-scrollbar { width: 16px !important; height: 16px !important; }
-.theme-win98 ::-webkit-scrollbar-track { background: #dfdfdf !important; }
+/* Searchable Select Dropdown */
+.theme-win98 .searchable-select-wrapper div {
+    background: rgba(18, 11, 46, 0.98) !important;
+    backdrop-filter: blur(20px) !important;
+    border-color: rgba(255, 255, 255, 0.18) !important;
+    border-radius: 10px !important;
+}
+.theme-win98 .searchable-select-wrapper div > div {
+    color: #cbd5e1 !important;
+}
+.theme-win98 .searchable-select-wrapper div > div:hover,
+.theme-win98 .searchable-select-wrapper div > div.bg-primary-50 {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: #ffffff !important;
+}
+
+/* ── Scrollbar Cyberpunk Neon ── */
+.theme-win98 ::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
+.theme-win98 ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.3) !important; }
 .theme-win98 ::-webkit-scrollbar-thumb {
-    background: #c0c0c0 !important;
-    border-radius: 0 !important;
-    border: 2px solid !important;
-    border-color: #ffffff #808080 #808080 #ffffff !important;
+    background: #4c0757 !important;
+    border-radius: 4px !important;
+}
+.theme-win98 ::-webkit-scrollbar-thumb:hover {
+    background: #7e0542 !important;
 }
 
-/* ── Spinner loading versi kotak-kotak (bukan lingkaran mulus) ── */
+/* ── Spinner Loading Neon ── */
 .theme-win98 .spinner {
-    border-radius: 0 !important;
-    border-color: #808080 !important;
-    border-top-color: #000080 !important;
+    border-radius: 50% !important;
+    border: 3px solid rgba(255, 255, 255, 0.1) !important;
+    border-top-color: #ec4899 !important;
 }
 
-/* Badge status kecil tetap kebaca meski warnanya ditimpa jadi abu */
-.theme-win98 .text-emerald-600, .theme-win98 .text-green-600,
-.theme-win98 .text-red-600, .theme-win98 .text-red-500,
-.theme-win98 .text-amber-600, .theme-win98 .text-blue-600 {
-    font-weight: bold !important;
+/* Status Badges */
+.theme-win98 span[class*="bg-purple-50"],
+.theme-win98 span[class*="bg-emerald-50"],
+.theme-win98 span[class*="bg-blue-50"],
+.theme-win98 span[class*="bg-indigo-50"],
+.theme-win98 span[class*="bg-teal-50"],
+.theme-win98 span[class*="bg-green-50"],
+.theme-win98 span[class*="bg-red-50"] {
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    color: #ffffff !important;
 }
 
-/* Cursor gaya klasik untuk elemen yang bisa diklik (best-effort, browser modern
-   tidak menyediakan cursor Win98 asli, jadi kita pakai 'pointer' standar). */
+/* Semantic Badges Colors */
+.theme-win98 .text-green-600, .theme-win98 .text-emerald-600 { color: #4ade80 !important; font-weight: bold !important; }
+.theme-win98 .text-red-500, .theme-win98 .text-red-600 { color: #f87171 !important; font-weight: bold !important; }
+.theme-win98 .text-amber-500, .theme-win98 .text-amber-600 { color: #fbbf24 !important; font-weight: bold !important; }
+.theme-win98 .text-blue-500, .theme-win98 .text-blue-600 { color: #60a5fa !important; font-weight: bold !important; }
+
+/* ── Raised & Sunken ── */
+.theme-win98 .win98-raised {
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    box-shadow: 0 4px 12px rgba(126, 5, 66, 0.2) !important;
+}
+.theme-win98 .win98-sunken {
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    background: rgba(0, 0, 0, 0.25) !important;
+}
+
+/* Cursor pointer */
 .theme-win98 button, .theme-win98 [onclick] {
     cursor: pointer;
 }

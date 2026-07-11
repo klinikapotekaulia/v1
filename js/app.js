@@ -137,10 +137,178 @@ window.App = {
     },
 
     logout: function () {
-        if (!confirm('Yakin ingin logout?')) return;
+        var modalContent = 
+            '<div class="p-6 text-center">' +
+            '  <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 mb-4">' +
+            '    <i data-lucide="log-out" class="w-6 h-6"></i>' +
+            '  </div>' +
+            '  <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">Konfirmasi Logout</h3>' +
+            '  <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">Apakah Anda yakin ingin keluar dari sistem?</p>' +
+            '  <div class="flex justify-center gap-3">' +
+            '    <button onclick="Utils.closeModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-lg transition">' +
+            '      Batal' +
+            '    </button>' +
+            '    <button onclick="App.confirmLogout()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition">' +
+            '      Ya, Keluar' +
+            '    </button>' +
+            '  </div>' +
+            '</div>';
+        Utils.openModal(modalContent);
+    },
+
+    confirmLogout: function () {
+        Utils.closeModal();
         firebase.auth().signOut()
             .then(function ()  { Utils.toast('Berhasil logout.', 'success'); })
             .catch(function (e){ Utils.toast('Gagal logout: ' + e.message, 'error'); });
+    },
+
+    initNetworkStatus: function () {
+        var self = this;
+        var btn = document.getElementById('btn-network-status');
+        var dot = document.getElementById('network-dot');
+        var text = document.getElementById('network-text');
+        var icon = document.getElementById('network-icon');
+
+        function updateUI() {
+            var isOnline = navigator.onLine;
+            if (!btn || !dot || !text || !icon) return;
+
+            // Atur ulang class nama style
+            dot.className = 'w-2 h-2 rounded-full';
+            btn.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all duration-300 hover:bg-slate-50 dark:hover:bg-slate-700/50';
+
+            if (isOnline) {
+                dot.classList.add('bg-green-500', 'animate-pulse');
+                text.textContent = 'Online';
+                text.className = 'hidden sm:inline-block text-green-600 dark:text-green-400';
+                btn.classList.add('border-green-200', 'dark:border-green-900/30', 'bg-green-50/50', 'dark:bg-green-950/10');
+                icon.setAttribute('data-lucide', 'wifi');
+                icon.className = 'w-4 h-4 text-green-500 dark:text-green-400';
+            } else {
+                dot.classList.add('bg-amber-500');
+                text.textContent = 'Offline';
+                text.className = 'hidden sm:inline-block text-amber-600 dark:text-amber-400 font-bold';
+                btn.classList.add('border-amber-200', 'dark:border-amber-900/30', 'bg-amber-50/50', 'dark:bg-amber-950/10', 'animate-pulse');
+                icon.setAttribute('data-lucide', 'wifi-off');
+                icon.className = 'w-4 h-4 text-amber-500 dark:text-amber-400';
+                Utils.toast('Koneksi internet terputus. Bekerja Offline.', 'warning');
+            }
+
+            if (window.lucide) {
+                lucide.createIcons({ el: btn });
+            }
+        }
+
+        window.addEventListener('online', function () {
+            updateUI();
+            Utils.toast('Koneksi internet kembali pulih. Sinkronisasi otomatis aktif.', 'success');
+        });
+        window.addEventListener('offline', updateUI);
+
+        // Jalankan pengecekan awal
+        updateUI();
+
+        // Cek status service worker
+        this.swStatus = 'Checking...';
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.ready.then(function (registration) {
+                self.swStatus = 'Aktif (Scope: ' + registration.scope + ')';
+            }).catch(function (err) {
+                self.swStatus = 'Gagal memuat: ' + err.message;
+            });
+        } else {
+            this.swStatus = 'Tidak didukung oleh browser ini';
+        }
+    },
+
+    showPwaDetails: function () {
+        var isOnline = navigator.onLine;
+        var swInfo = this.swStatus || 'Tidak aktif atau belum terdaftar';
+
+        var connectionTitle = isOnline ? 'Tersambung (Online)' : 'Terputus (Offline)';
+        var connectionColor = isOnline ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400';
+        var connectionBg = isOnline ? 'bg-green-50 dark:bg-green-950/20' : 'bg-amber-50 dark:bg-amber-950/20';
+        var connectionIcon = isOnline ? 'wifi' : 'wifi-off';
+
+        var statusDesc = isOnline 
+            ? 'Aplikasi terhubung penuh ke Cloud Server. Semua data obat, transaksi, laporan keuangan, dan audit log akan langsung disimpan dan disinkronkan secara realtime.'
+            : 'Koneksi internet Anda sedang terganggu atau tidak ada. Berkat <b>Service Worker (PWA)</b> dan <b>Firestore Offline Cache</b>, Anda masih dapat membuka aplikasi, melihat data, dan melakukan input transaksi tertentu secara offline. Transaksi baru Anda akan disimpan sementara di memori browser dan disinkronkan secara otomatis begitu internet terhubung kembali.';
+
+        var html = 
+            '<div class="p-6">' +
+                '<div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-4 mb-4">' +
+                    '<div class="flex items-center gap-2">' +
+                        '<i data-lucide="zap" class="w-5 h-5 text-primary-500"></i>' +
+                        '<h3 class="text-lg font-bold">Status Koneksi & PWA</h3>' +
+                    '</div>' +
+                    '<button onclick="Utils.closeModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">' +
+                        '<i data-lucide="x" class="w-5 h-5"></i>' +
+                    '</button>' +
+                '</div>' +
+
+                '<div class="space-y-4">' +
+                    '<!-- Status Koneksi -->' +
+                    '<div class="p-4 rounded-xl ' + connectionBg + ' flex gap-3">' +
+                        '<div class="p-2 rounded-lg bg-white dark:bg-slate-800 shadow-sm flex-shrink-0 h-9 w-9 flex items-center justify-center">' +
+                            '<i data-lucide="' + connectionIcon + '" class="w-5 h-5 ' + connectionColor + '"></i>' +
+                        '</div>' +
+                        '<div>' +
+                            '<p class="text-sm font-semibold ' + connectionColor + '">' + connectionTitle + '</p>' +
+                            '<p class="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">' + statusDesc + '</p>' +
+                        '</div>' +
+                    '</div>' +
+
+                    '<!-- Service Worker Info -->' +
+                    '<div class="border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-3">' +
+                        '<div class="flex items-center gap-2 text-sm font-semibold">' +
+                            '<i data-lucide="cpu" class="w-4 h-4 text-indigo-500"></i>' +
+                            '<span>Service Worker (PWA Engine)</span>' +
+                        '</div>' +
+                        '<div class="grid grid-cols-3 gap-2 text-xs">' +
+                            '<span class="text-slate-400">Status Registrasi:</span>' +
+                            '<span class="col-span-2 font-medium text-slate-700 dark:text-slate-300">' + swInfo + '</span>' +
+
+                            '<span class="text-slate-400">Penyimpanan Cache:</span>' +
+                            '<span class="col-span-2 font-medium text-slate-700 dark:text-slate-300">Aktif (Shell Cache: aulia-v6)</span>' +
+
+                            '<span class="text-slate-400">Mode Kerja:</span>' +
+                            '<span class="col-span-2 font-medium text-slate-700 dark:text-slate-300">Hybrid (Network-First & Offline Fallback)</span>' +
+                        '</div>' +
+                        '<p class="text-[11px] text-slate-400 leading-relaxed pt-1 border-t border-slate-100 dark:border-slate-800">' +
+                            'Service Worker menyimpan aset statis aplikasi di browser Anda sehingga aplikasi memuat lebih cepat dan tetap dapat dibuka walau offline.' +
+                        '</p>' +
+                    '</div>' +
+
+                    '<!-- Firestore Cache Info -->' +
+                    '<div class="border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-3">' +
+                        '<div class="flex items-center gap-2 text-sm font-semibold">' +
+                            '<i data-lucide="database" class="w-4 h-4 text-emerald-500"></i>' +
+                            '<span>Firestore Offline Persistence</span>' +
+                        '</div>' +
+                        '<div class="grid grid-cols-3 gap-2 text-xs">' +
+                            '<span class="text-slate-400">Status Cache:</span>' +
+                            '<span class="col-span-2 font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">' +
+                                '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Aktif (IndexedDB)' +
+                            '</span>' +
+
+                            '<span class="text-slate-400">Tab Sync:</span>' +
+                            '<span class="col-span-2 font-medium text-slate-700 dark:text-slate-300">Diaktifkan (Multi-Tab)</span>' +
+                        '</div>' +
+                        '<p class="text-[11px] text-slate-400 leading-relaxed pt-1 border-t border-slate-100 dark:border-slate-800">' +
+                            'Penyimpanan database lokal Firestore aktif. Transaksi harian akan tersimpan aman di disk lokal saat offline dan disinkronkan kembali saat online.' +
+                        '</p>' +
+                    '</div>' +
+                '</div>' +
+
+                '<div class="flex justify-end mt-6">' +
+                    '<button onclick="Utils.closeModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-lg transition">' +
+                        'Tutup' +
+                    '</button>' +
+                '</div>' +
+            '</div>';
+
+        Utils.openModal(html);
     }
 };
 
@@ -149,7 +317,8 @@ window.App = {
 // ============================================================
 var menuStructure = {
     utama: [
-        { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard', module: 'dashboard' }
+        { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard', module: 'dashboard' },
+        { id: 'chat',      label: 'Diskusi & Chat', icon: 'message-square', module: 'chat' }
     ],
     klinik: [
         { id: 'antrian',    label: 'Antrian',     icon: 'list-ordered', module: 'klinik/antrian'    },
@@ -169,7 +338,8 @@ var menuStructure = {
         { id: 'hutang',          label: 'Hutang Usaha',      icon: 'file-text',     module: 'laporan/hutang'         },
         { id: 'pengeluaran',     label: 'Pengeluaran',       icon: 'receipt',       module: 'laporan/pengeluaran'    },
         { id: 'piutang',         label: 'Piutang Karyawan',  icon: 'wallet',        module: 'laporan/piutang'        },
-        { id: 'penjualanHarian', label: 'Penjualan Harian',  icon: 'bar-chart-2',   module: 'laporan/penjualanHarian'}
+        { id: 'penjualanHarian', label: 'Penjualan Harian',  icon: 'bar-chart-2',   module: 'laporan/penjualanHarian'},
+        { id: 'auditTrail',      label: 'Audit Trail',       icon: 'history',       module: 'laporan/auditTrail'     }
     ],
     manajemen: [
         { id: 'karyawan', label: 'Karyawan', icon: 'user-check',    module: 'manajemen/karyawan' },
@@ -192,6 +362,11 @@ var menuStructure = {
 
 var roleAccess = {
     klinik:   ['utama', 'klinik', 'manajemen.absensi'],
+    // FIX (permintaan user): role baru khusus akun Dokter. Akses menu sama dengan
+    // Klinik, namun di dalam Antrian & Rekam Medis perilakunya dibedakan
+    // (lihat js/klinik/antrian.js & js/klinik/rekamMedis.js) — hanya akun Dokter
+    // yang bisa membuka & menyimpan Rekam Medis.
+    dokter:   ['utama', 'klinik', 'manajemen.absensi'],
     apotek:   ['utama', 'apotek', 'laporan.pengeluaran', 'laporan.penjualanHarian', 'manajemen.absensi'],
     // FIX (permintaan user): admin sekarang punya akses penuh (CRUD) ke modul Keuangan,
     // sementara modul Karyawan untuk admin dibuat view-only (lihat js/manajemen/karyawan.js).
@@ -281,6 +456,15 @@ function loadScript(url) {
 }
 
 window.navigateTo = function (modulePath, title) {
+    if (_currentModule && typeof _currentModule.destroy === 'function') {
+        try {
+            _currentModule.destroy();
+        } catch (e) {
+            console.error('Error destroying module:', e);
+        }
+    }
+    _currentModule = null;
+
     document.getElementById('page-title').textContent = title || '';
     document.getElementById('app-content').innerHTML  =
         '<div class="flex justify-center py-20"><div class="spinner"></div></div>';
@@ -348,6 +532,11 @@ window.navigateTo = function (modulePath, title) {
 function startApp(userRole, userName, userTema) {
     window.currentRole     = userRole;
     window.currentUserName = userName;
+    var user = firebase.auth().currentUser;
+    if (user) {
+        window.currentUid = user.uid;
+        window.currentUserEmail = user.email;
+    }
 
     var nameSafe = (userName || 'User').toString().trim() || 'User';
     var roleSafe = (userRole  || 'user').toString().trim() || 'user';
@@ -385,9 +574,34 @@ firebase.auth().onAuthStateChanged(function (user) {
         db.collection('users').doc(user.uid).get()
             .then(function (doc) {
                 if (!doc.exists) {
-                    Utils.toast('Profil akun tidak ditemukan. Hubungi Admin.', 'error');
-                    firebase.auth().signOut();
-                    return;
+                    // Cek apakah database benar-benar kosong (tidak ada user sama sekali).
+                    // Jika kosong, daftarkan user ini otomatis sebagai Admin pertama (bootstrap).
+                    return db.collection('users').limit(1).get()
+                        .then(function (snap) {
+                            if (snap.empty) {
+                                var bootstrapData = {
+                                    nama: (user.displayName || user.email || 'Keuangan Aulia').split('@')[0],
+                                    email: user.email,
+                                    role: 'keuangan',
+                                    status: 'aktif',
+                                    tema: 'default',
+                                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                                };
+                                return db.collection('users').doc(user.uid).set(bootstrapData)
+                                    .then(function () {
+                                        Utils.toast('Database kosong terdeteksi. Akun Anda berhasil di-bootstrap sebagai Keuangan (Owner)!', 'success');
+                                        startApp('keuangan', bootstrapData.nama, 'default');
+                                    });
+                            } else {
+                                Utils.toast('Profil akun tidak ditemukan. Hubungi Admin.', 'error');
+                                firebase.auth().signOut();
+                            }
+                        })
+                        .catch(function (err) {
+                            console.error('[AUTH] Bootstrap check error:', err);
+                            Utils.toast('Profil akun tidak ditemukan. Hubungi Admin.', 'error');
+                            firebase.auth().signOut();
+                        });
                 }
                 var data = doc.data();
                 if (data.status === 'nonaktif') {
@@ -418,3 +632,16 @@ firebase.auth().onAuthStateChanged(function (user) {
         if (elAvatar) elAvatar.textContent = '?';
     }
 });
+
+// Initialize network status monitoring once DOM is loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+        if (window.App && typeof window.App.initNetworkStatus === 'function') {
+            window.App.initNetworkStatus();
+        }
+    });
+} else {
+    if (window.App && typeof window.App.initNetworkStatus === 'function') {
+        window.App.initNetworkStatus();
+    }
+}

@@ -83,7 +83,7 @@ window.AppPengaturanGaji = {
 
         // Input Gaji
         html += '<div class="flex items-center gap-2 w-full sm:w-1/3">';
-        html += '<input type="number" id="gaji-nominal-' + tipe + '-' + index + '" value="' + (item.gajiPokok || 0) + '" placeholder="0" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm text-right pr-8 focus:ring-2 focus:ring-primary-500 outline-none">';
+        html += '<input type="number" id="gaji-nominal-' + tipe + '-' + index + '" value="' + (item.gajiPokok || 0) + '" placeholder="0" min="0" step="any" required class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm text-right pr-8 focus:ring-2 focus:ring-primary-500 outline-none">';
         html += '<span class="absolute right-14 text-xs text-slate-400">Rp</span>'; // Fix posisi nanti kalau perlu
         html += '</div>';
 
@@ -106,15 +106,21 @@ window.AppPengaturanGaji = {
 
     simpan: function() {
         var dataToSave = { apotek: [], klinik: [] };
+        var invalid = false;
 
         // Kumpulkan Apotek
         var apotekRows = document.querySelectorAll('[id^="row-gaji-apotek-"]');
         apotekRows.forEach((row, i) => {
             var karyId = document.getElementById('gaji-id-apotek-' + i)?.value;
+            var nominalEl = document.getElementById('gaji-nominal-apotek-' + i);
+            var nominalRaw = nominalEl?.value;
             if (karyId) {
+                if (nominalRaw === '' || nominalRaw === undefined || isNaN(nominalRaw) || parseFloat(nominalRaw) < 0) {
+                    invalid = true;
+                }
                 dataToSave.apotek.push({
                     karyawanId: karyId,
-                    gajiPokok: parseFloat(document.getElementById('gaji-nominal-apotek-' + i)?.value) || 0
+                    gajiPokok: parseFloat(nominalRaw) || 0
                 });
             }
         });
@@ -123,13 +129,23 @@ window.AppPengaturanGaji = {
         var klinikRows = document.querySelectorAll('[id^="row-gaji-klinik-"]');
         klinikRows.forEach((row, i) => {
             var karyId = document.getElementById('gaji-id-klinik-' + i)?.value;
+            var nominalEl = document.getElementById('gaji-nominal-klinik-' + i);
+            var nominalRaw = nominalEl?.value;
             if (karyId) {
+                if (nominalRaw === '' || nominalRaw === undefined || isNaN(nominalRaw) || parseFloat(nominalRaw) < 0) {
+                    invalid = true;
+                }
                 dataToSave.klinik.push({
                     karyawanId: karyId,
-                    gajiPokok: parseFloat(document.getElementById('gaji-nominal-klinik-' + i)?.value) || 0
+                    gajiPokok: parseFloat(nominalRaw) || 0
                 });
             }
         });
+
+        if (invalid) {
+            Utils.toast('Nominal gaji wajib diisi dan tidak boleh negatif', 'error');
+            return;
+        }
 
         Utils.toast('Menyimpan...', 'info');
         db.collection('pengaturanGaji').doc('global').set(dataToSave, { merge: true })

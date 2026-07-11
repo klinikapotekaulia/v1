@@ -314,17 +314,28 @@ window.AppKeuanganAkuntansi = {
         };
         if (obj.debit <= 0 || obj.akunDebit === obj.akunKredit) { Utils.toast('Input tidak valid', 'error'); return; }
 
-        db.collection('jurnalManual').add(obj).then(function() {
+        db.collection('jurnalManual').add(obj).then(function(ref) {
             Utils.toast('Jurnal tersimpan!', 'success');
             Utils.closeModal();
+            AuditLog.catat({
+                aksi: 'tambah', modul: 'Jurnal Manual', koleksi: 'jurnalManual', targetId: ref.id,
+                deskripsi: obj.keterangan + ' (' + obj.akunDebit + ' -> ' + obj.akunKredit + ')',
+                nominal: obj.debit
+            });
             AppKeuanganAkuntansi.init();
         });
     },
 
     hapusJurnal: function(id) {
         if (!confirm('Hapus jurnal manual ini?')) return;
+        var jurnal = this.dataJurnal.find(function(j) { return j.id === id; });
         db.collection('jurnalManual').doc(id).delete().then(function() {
             Utils.toast('Jurnal dihapus.', 'info');
+            AuditLog.catat({
+                aksi: 'hapus', modul: 'Jurnal Manual', koleksi: 'jurnalManual', targetId: id,
+                deskripsi: 'Hapus jurnal: ' + (jurnal ? jurnal.keterangan : id),
+                nominal: jurnal ? jurnal.debit : null
+            });
             AppKeuanganAkuntansi.init();
         });
     },

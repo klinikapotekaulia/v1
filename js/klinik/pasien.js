@@ -74,6 +74,7 @@ window.AppKlinikPasien = {
         html += '<th class="px-4 py-3 text-left">No. RM</th>';
         html += '<th class="px-4 py-3 text-left">Nama Pasien</th>';
         html += '<th class="px-4 py-3 text-left hidden md:table-cell">L/P</th>';
+        html += '<th class="px-4 py-3 text-left hidden md:table-cell">Usia</th>';
         html += '<th class="px-4 py-3 text-left hidden lg:table-cell">No. Telepon</th>';
         html += '<th class="px-4 py-3 text-left hidden lg:table-cell">Alergi Obat</th>';
         html += '<th class="px-4 py-3 text-right">Aksi</th>';
@@ -88,6 +89,7 @@ window.AppKlinikPasien = {
             html += '<td class="px-4 py-3 font-mono text-xs text-primary-600 dark:text-primary-400 font-semibold">' + Utils.escapeHtml(p.nomorRM || '-') + '</td>';
             html += '<td class="px-4 py-3 font-medium text-gray-800 dark:text-white">' + Utils.escapeHtml(p.nama) + '</td>';
             html += '<td class="px-4 py-3 text-slate-600 dark:text-slate-300 hidden md:table-cell">' + Utils.escapeHtml(p.jenisKelamin || '-') + '</td>';
+            html += '<td class="px-4 py-3 text-slate-600 dark:text-slate-300 hidden md:table-cell">' + (p.usia != null && p.usia !== '' ? p.usia + ' th' : '-') + '</td>';
             html += '<td class="px-4 py-3 text-slate-600 dark:text-slate-300 hidden lg:table-cell">' + Utils.escapeHtml(p.noTelepon || '-') + '</td>';
             html += '<td class="px-4 py-3 hidden lg:table-cell">' + alergi + '</td>';
             html += '<td class="px-4 py-3 text-right space-x-1">';
@@ -125,7 +127,7 @@ window.AppKlinikPasien = {
 
         html += '<div class="grid grid-cols-2 gap-4">';
         html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Jenis Kelamin</label><select id="fp-jk" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm"><option value="L"' + (p.jenisKelamin==='L'?' selected':'') + '>Laki-laki (L)</option><option value="P"' + (p.jenisKelamin==='P'?' selected':'') + '>Perempuan (P)</option></select></div>';
-        html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tanggal Lahir</label><input type="date" id="fp-tgl" value="' + (p.tanggalLahir || '') + '" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm"></div>';
+        html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Usia (tahun)</label><input type="number" id="fp-usia" min="0" max="150" value="' + (p.usia != null ? p.usia : '') + '" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm" placeholder="Contoh: 35"></div>';
         html += '</div>';
 
         html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">No. Telepon</label><input type="text" id="fp-telp" value="' + Utils.escapeHtml(p.noTelepon || '') + '" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm" placeholder="08xxxxxxxxxx"></div>';
@@ -158,11 +160,12 @@ window.AppKlinikPasien = {
         var idField = document.getElementById('fp-id');
         var isEdit = !!idField;
         
+        var usiaVal = document.getElementById('fp-usia').value;
         var obj = {
             nomorRM: document.getElementById('fp-rm').value.trim(),
             nama: document.getElementById('fp-nama').value.trim(),
             jenisKelamin: document.getElementById('fp-jk').value,
-            tanggalLahir: document.getElementById('fp-tgl').value,
+            usia: usiaVal !== '' ? parseInt(usiaVal, 10) : null,
             noTelepon: document.getElementById('fp-telp').value.trim(),
             alamat: document.getElementById('fp-alamat').value.trim(),
             alergiObat: document.getElementById('fp-alergi').value.trim(),
@@ -200,17 +203,6 @@ window.AppKlinikPasien = {
     // ==========================================
     // FITUR EXCEL IMPORT
     // ==========================================
-    
-    hitungUmur: function(tanggalLahir) {
-        if (!tanggalLahir) return '';
-        var lahir = new Date(tanggalLahir);
-        if (isNaN(lahir.getTime())) return '';
-        var now = new Date();
-        var umur = now.getFullYear() - lahir.getFullYear();
-        var m = now.getMonth() - lahir.getMonth();
-        if (m < 0 || (m === 0 && now.getDate() < lahir.getDate())) umur--;
-        return umur + ' tahun';
-    },
 
     exportExcel: function() {
         // Guard di level fungsi juga (bukan cuma sembunyikan tombol), agar tidak bisa
@@ -228,7 +220,7 @@ window.AppKlinikPasien = {
         this.data.forEach(function(p) {
             rows.push([
                 p.nomorRM || '', p.nama || '', p.jenisKelamin || '',
-                AppKlinikPasien.hitungUmur(p.tanggalLahir), p.noTelepon || '', p.alamat || '', p.alergiObat || ''
+                (p.usia != null && p.usia !== '') ? (p.usia + ' tahun') : '', p.noTelepon || '', p.alamat || '', p.alergiObat || ''
             ]);
         });
 
@@ -246,8 +238,8 @@ window.AppKlinikPasien = {
             return;
         }
         var ws_data = [
-            ['No. RM', 'Nama Lengkap', 'L/P', 'Tanggal Lahir (YYYY-MM-DD)', 'No. Telepon', 'Alamat', 'Alergi Obat'],
-            ['RM-2011-001', 'Contoh Nama Pasien', 'L', '1985-05-15', '081234567890', 'Jl. Contoh No. 1', 'Tidak ada'],
+            ['No. RM', 'Nama Lengkap', 'L/P', 'Usia', 'No. Telepon', 'Alamat', 'Alergi Obat'],
+            ['RM-2011-001', 'Contoh Nama Pasien', 'L', '39', '081234567890', 'Jl. Contoh No. 1', 'Tidak ada'],
         ];
         var ws = XLSX.utils.aoa_to_sheet(ws_data);
         ws['!cols'] = [{wch: 15}, {wch: 30}, {wch: 5}, {wch: 25}, {wch: 18}, {wch: 30}, {wch: 20}];
@@ -282,7 +274,7 @@ window.AppKlinikPasien = {
                     nomorRM: String(row['No. RM'] || '').trim(),
                     nama: String(row['Nama Lengkap'] || '').trim(),
                     jenisKelamin: String(row['L/P'] || 'L').trim().toUpperCase().substring(0,1),
-                    tanggalLahir: String(row['Tanggal Lahir (YYYY-MM-DD)'] || '').trim(),
+                    usia: (function() { var v = parseInt(row['Usia'], 10); return isNaN(v) ? null : v; })(),
                     noTelepon: String(row['No. Telepon'] || '').trim(),
                     alamat: String(row['Alamat'] || '').trim(),
                     alergiObat: String(row['Alergi Obat'] || '').trim()
@@ -311,7 +303,7 @@ window.AppKlinikPasien = {
         
         html += '<div class="overflow-x-auto max-h-64 rounded-lg border border-slate-200 dark:border-slate-700 mb-4">';
         html += '<table class="w-full text-xs">';
-        html += '<thead class="bg-slate-50 dark:bg-slate-900 sticky top-0"><tr><th class="px-2 py-2 text-left">No. RM</th><th class="px-2 py-2 text-left">Nama</th><th class="px-2 py-2 text-left">L/P</th><th class="px-2 py-2 text-left">Telp</th><th class="px-2 py-2 text-left">Alergi</th></tr></thead><tbody>';
+        html += '<thead class="bg-slate-50 dark:bg-slate-900 sticky top-0"><tr><th class="px-2 py-2 text-left">No. RM</th><th class="px-2 py-2 text-left">Nama</th><th class="px-2 py-2 text-left">L/P</th><th class="px-2 py-2 text-left">Usia</th><th class="px-2 py-2 text-left">Telp</th><th class="px-2 py-2 text-left">Alergi</th></tr></thead><tbody>';
         
         var previewCount = Math.min(data.length, 50);
         for (var i = 0; i < previewCount; i++) {
@@ -320,13 +312,14 @@ window.AppKlinikPasien = {
             html += '<td class="px-2 py-1 font-mono">' + Utils.escapeHtml(p.nomorRM) + '</td>';
             html += '<td class="px-2 py-1 font-medium">' + Utils.escapeHtml(p.nama) + '</td>';
             html += '<td class="px-2 py-1">' + Utils.escapeHtml(p.jenisKelamin) + '</td>';
+            html += '<td class="px-2 py-1">' + (p.usia != null ? p.usia : '-') + '</td>';
             html += '<td class="px-2 py-1">' + Utils.escapeHtml(p.noTelepon) + '</td>';
             html += '<td class="px-2 py-1 text-red-500">' + Utils.escapeHtml(p.alergiObat || '-') + '</td>';
             html += '</tr>';
         }
         
         if (data.length > 50) {
-            html += '<tr><td colspan="5" class="px-2 py-2 text-center text-slate-400 italic">... dan ' + (data.length - 50) + ' data lainnya</td></tr>';
+            html += '<tr><td colspan="6" class="px-2 py-2 text-center text-slate-400 italic">... dan ' + (data.length - 50) + ' data lainnya</td></tr>';
         }
         html += '</tbody></table></div>';
 
@@ -359,7 +352,7 @@ window.AppKlinikPasien = {
                     nomorRM: pasien.nomorRM,
                     nama: pasien.nama,
                     jenisKelamin: pasien.jenisKelamin,
-                    tanggalLahir: pasien.tanggalLahir,
+                    usia: pasien.usia,
                     noTelepon: pasien.noTelepon,
                     alamat: pasien.alamat,
                     alergiObat: pasien.alergiObat,

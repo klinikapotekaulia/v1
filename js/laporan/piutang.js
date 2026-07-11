@@ -128,21 +128,30 @@ window.AppLaporanPiutang = {
 
         if (!obj.karyawanId || obj.jumlah <= 0) { Utils.toast('Lengkapi data', 'error'); return; }
 
-        db.collection('piutangKaryawan').add(obj).then(() => {
+        db.collection('piutangKaryawan').add(obj).then((ref) => {
             Utils.toast('Kasbon tercatat!', 'success');
             Utils.closeModal();
+            AuditLog.catat({
+                aksi: 'tambah', modul: 'Piutang Karyawan', koleksi: 'piutangKaryawan', targetId: ref.id,
+                deskripsi: 'Kasbon baru: ' + obj.namaKaryawan + ' - ' + obj.keterangan, nominal: obj.jumlah
+            });
             AppLaporanPiutang.init();
         }).catch(err => Utils.toast('Gagal: ' + err.message, 'error'));
     },
 
     lunasi: function(id) {
         if (!confirm('Tandai piutang ini sudah lunas?')) return;
+        var item = this.data ? this.data.find(p => p.id === id) : null;
         db.collection('piutangKaryawan').doc(id).update({
             status: 'lunas',
             tanggalLunas: new Date().toISOString().split('T')[0],
             lunasiOleh: window.currentUserName || 'Keuangan'
         }).then(() => {
             Utils.toast('Piutang dilunasi!', 'success');
+            AuditLog.catat({
+                aksi: 'bayar', modul: 'Piutang Karyawan', koleksi: 'piutangKaryawan', targetId: id,
+                deskripsi: 'Lunasi kasbon: ' + (item ? item.namaKaryawan : id), nominal: item ? item.jumlah : null
+            });
             AppLaporanPiutang.init();
         }).catch(err => Utils.toast('Gagal: ' + err.message, 'error'));
     }

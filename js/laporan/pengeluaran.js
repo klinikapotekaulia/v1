@@ -114,29 +114,43 @@ window.AppLaporanPengeluaran = {
 
         if (obj.jumlah <= 0) { Utils.toast('Jumlah harus lebih dari 0', 'error'); return; }
 
-        db.collection('kasKeluar').add(obj).then(() => {
+        db.collection('kasKeluar').add(obj).then((ref) => {
             Utils.toast('Pengajuan berhasil dikirim!', 'success');
             Utils.closeModal();
+            AuditLog.catat({
+                aksi: 'tambah', modul: 'Pengeluaran Kas', koleksi: 'kasKeluar', targetId: ref.id,
+                deskripsi: 'Ajukan pengeluaran: ' + obj.keterangan, nominal: obj.jumlah
+            });
             AppLaporanPengeluaran.init();
         }).catch(err => Utils.toast('Gagal: ' + err.message, 'error'));
     },
 
     approve: function(id) {
         if (!confirm('Setujui pengeluaran ini? Kas akan keluar.')) return;
+        var item = this.data.find(p => p.id === id);
         db.collection('kasKeluar').doc(id).update({
             status: 'approved',
             approvedBy: window.currentUserName || 'Admin',
             approvedAt: firebase.firestore.FieldValue.serverTimestamp()
         }).then(() => {
             Utils.toast('Pengeluaran disetujui!', 'success');
+            AuditLog.catat({
+                aksi: 'approve', modul: 'Pengeluaran Kas', koleksi: 'kasKeluar', targetId: id,
+                deskripsi: 'Approve pengeluaran: ' + (item ? item.keterangan : id), nominal: item ? item.jumlah : null
+            });
             AppLaporanPengeluaran.init();
         }).catch(err => Utils.toast('Gagal: ' + err.message, 'error'));
     },
 
     reject: function(id) {
         if (!confirm('Tolak pengajuan ini?')) return;
+        var item = this.data.find(p => p.id === id);
         db.collection('kasKeluar').doc(id).update({ status: 'rejected' }).then(() => {
             Utils.toast('Pengajuan ditolak.', 'info');
+            AuditLog.catat({
+                aksi: 'tolak', modul: 'Pengeluaran Kas', koleksi: 'kasKeluar', targetId: id,
+                deskripsi: 'Tolak pengeluaran: ' + (item ? item.keterangan : id), nominal: item ? item.jumlah : null
+            });
             AppLaporanPengeluaran.init();
         }).catch(err => Utils.toast('Gagal: ' + err.message, 'error'));
     }

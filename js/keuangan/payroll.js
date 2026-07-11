@@ -403,9 +403,9 @@ window.AppKeuanganPayroll = {
                 html += '</td>';
 
                 // Manual Inputs
-                html += '<td class="px-1 py-1 text-right"><input type="number" id="tunjangan-' + idx + '" value="0" oninput="AppKeuanganPayroll.updateTotal(' + idx + ')" class="w-20 px-1 py-1 border border-slate-300 dark:bg-slate-700 dark:text-white rounded text-xs text-right"></td>';
-                html += '<td class="px-1 py-1 text-right"><input type="number" id="kasbon-' + idx + '" value="0" oninput="AppKeuanganPayroll.updateTotal(' + idx + ')" class="w-20 px-1 py-1 border border-red-300 dark:bg-slate-700 dark:text-white rounded text-xs text-right"></td>';
-                html += '<td class="px-1 py-1 text-right"><input type="number" id="wisata-' + idx + '" value="0" oninput="AppKeuanganPayroll.updateTotal(' + idx + ')" class="w-20 px-1 py-1 border border-red-300 dark:bg-slate-700 dark:text-white rounded text-xs text-right"></td>';
+                html += '<td class="px-1 py-1 text-right"><input type="number" id="tunjangan-' + idx + '" value="0" min="0" oninput="AppKeuanganPayroll.updateTotal(' + idx + ')" class="w-20 px-1 py-1 border border-slate-300 dark:bg-slate-700 dark:text-white rounded text-xs text-right"></td>';
+                html += '<td class="px-1 py-1 text-right"><input type="number" id="kasbon-' + idx + '" value="0" min="0" oninput="AppKeuanganPayroll.updateTotal(' + idx + ')" class="w-20 px-1 py-1 border border-red-300 dark:bg-slate-700 dark:text-white rounded text-xs text-right"></td>';
+                html += '<td class="px-1 py-1 text-right"><input type="number" id="wisata-' + idx + '" value="0" min="0" oninput="AppKeuanganPayroll.updateTotal(' + idx + ')" class="w-20 px-1 py-1 border border-red-300 dark:bg-slate-700 dark:text-white rounded text-xs text-right"></td>';
                 
                 html += '<td class="px-3 py-2 text-right font-bold text-emerald-600" id="total-' + idx + '">' + Utils.formatRupiah(k.totalGaji) + '</td>';
                 html += '<td class="px-2 py-2 text-center"><button onclick="AppKeuanganPayroll.cetakSlip(' + idx + ')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded">Cetak</button></td>';
@@ -424,9 +424,15 @@ window.AppKeuanganPayroll = {
     },
 
     updateTotal: function(idx) {
-        var tunjangan = parseFloat(document.getElementById('tunjangan-' + idx).value) || 0;
-        var kasbon = parseFloat(document.getElementById('kasbon-' + idx).value) || 0;
-        var wisata = parseFloat(document.getElementById('wisata-' + idx).value) || 0;
+        var tunjanganEl = document.getElementById('tunjangan-' + idx);
+        var kasbonEl = document.getElementById('kasbon-' + idx);
+        var wisataEl = document.getElementById('wisata-' + idx);
+        if (parseFloat(tunjanganEl.value) < 0) tunjanganEl.value = 0;
+        if (parseFloat(kasbonEl.value) < 0) kasbonEl.value = 0;
+        if (parseFloat(wisataEl.value) < 0) wisataEl.value = 0;
+        var tunjangan = parseFloat(tunjanganEl.value) || 0;
+        var kasbon = parseFloat(kasbonEl.value) || 0;
+        var wisata = parseFloat(wisataEl.value) || 0;
         
         var k = this.kalkulasiGaji[idx];
         k.tunjanganLain = tunjangan;
@@ -550,6 +556,12 @@ window.AppKeuanganPayroll = {
 
             batch.commit().then(function() {
                 Utils.toast('Payroll berhasil disimpan & dikunci! Tabungan THR ikut terupdate.', 'success');
+                var totalPayroll = self.kalkulasiGaji.reduce(function(sum, k) { return sum + (k.totalGaji || 0); }, 0);
+                AuditLog.catat({
+                    aksi: 'bayar', modul: 'Payroll', koleksi: 'payrollHistory', targetId: bulan,
+                    deskripsi: 'Proses & kunci payroll bulan ' + bulan + ' untuk ' + self.kalkulasiGaji.length + ' karyawan',
+                    nominal: totalPayroll
+                });
                 self.init();
             }).catch(function(err) {
                 Utils.toast('Gagal simpan payroll: ' + err.message, 'error');
@@ -592,6 +604,10 @@ window.AppKeuanganPayroll = {
 
         batch.commit().then(function() {
             Utils.toast('THR ' + k.nama + ' berhasil dibayarkan & direset.', 'success');
+            AuditLog.catat({
+                aksi: 'bayar', modul: 'Payroll - THR', koleksi: 'thrPembayaranHistory', targetId: k.karyawanId,
+                deskripsi: 'Bayar THR: ' + k.nama, nominal: k.thrSaldoProyeksi
+            });
             self.init();
         }).catch(function(err) {
             Utils.toast('Gagal memproses THR: ' + err.message, 'error');

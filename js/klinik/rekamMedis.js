@@ -17,6 +17,14 @@ window.AppKlinikRekamMedis = {
     },
 
     init: function() {
+        // FIX (permintaan user): Buka RM & simpan Rekam Medis khusus akun Dokter
+        // (Admin/Keuangan tetap diberi akses untuk keperluan oversight/perbaikan data).
+        var allowedRoles = ['dokter', 'admin', 'keuangan'];
+        if (allowedRoles.indexOf(window.currentRole) === -1) {
+            document.getElementById('rm-content').innerHTML = '<div class="bg-red-50 text-red-600 p-4 rounded-lg">Akses Ditolak. Halaman ini khusus akun Dokter.</div>';
+            return;
+        }
+
         var pTindakan = db.collection('masterTindakan').where('aktif', '==', true).where('kategori', '==', 'klinik').get();
         
         pTindakan.then(snap => {
@@ -48,6 +56,18 @@ window.AppKlinikRekamMedis = {
                         AppKlinikRekamMedis.renderForm(null);
                     }
                 });
+            } else if (window.currentRole === 'dokter') {
+                // FIX (permintaan user): akun Dokter tidak boleh input pasien secara manual
+                // di Rekam Medis. Rekam Medis hanya boleh dibuka lewat menu Antrian
+                // (tombol "Buka RM"), supaya data pasien selalu berasal dari data yang valid.
+                document.getElementById('rm-content').innerHTML =
+                    '<div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 rounded-xl p-5 text-center">' +
+                    '<i data-lucide="info" class="w-8 h-8 mx-auto mb-2"></i>' +
+                    '<p class="font-semibold mb-1">Buka Rekam Medis lewat Antrian</p>' +
+                    '<p class="text-sm mb-4">Akun Dokter tidak bisa menginput data pasien secara manual di sini. Pilih pasien dari menu Antrian, lalu klik "Buka RM".</p>' +
+                    '<button onclick="navigateTo(\'klinik/antrian\', \'Antrian\')" class="bg-primary-600 text-white text-sm font-semibold px-4 py-2 rounded-lg">Buka Antrian</button>' +
+                    '</div>';
+                if (window.lucide) lucide.createIcons();
             } else {
                 AppKlinikRekamMedis.renderForm(null);
             }
@@ -75,11 +95,14 @@ window.AppKlinikRekamMedis = {
         // CATATAN MEDIS
         html += '<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 space-y-4">';
         html += '<h3 class="font-semibold text-gray-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Catatan Medis</h3>';
-        
-        html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Keluhan Utama</label><textarea id="rm-keluhan" rows="2" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm">' + Utils.escapeHtml(p.keluhan || '') + '</textarea></div>';
-        html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Anamnesis</label><textarea id="rm-anamnesis" rows="2" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm" placeholder="Riwayat penyakit sekarang, riwayat penyakit dahulu, alergi..."></textarea></div>';
-        html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Pemeriksaan Fisik</label><textarea id="rm-fisik" rows="2" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm" placeholder="TD, Nadi, RR, Suhu, GCS, Status Generalis..."></textarea></div>';
-        html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Diagnosa</label><input type="text" id="rm-diagnosa" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm" placeholder="Suspek ISPA, Myalgia, dll"></div>';
+
+        // TAMBAHAN (permintaan user): info rekam medis kunjungan sebelumnya (pasien yang sama)
+        // ditaruh di atas kolom input yang bersangkutan. Diisi async oleh loadRiwayat() setelah
+        // form ini dirender, supaya form tetap langsung tampil tanpa menunggu query riwayat.
+        html += '<div><div id="rm-riwayat-keluhan"></div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Keluhan Utama</label><textarea id="rm-keluhan" rows="2" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm">' + Utils.escapeHtml(p.keluhan || '') + '</textarea></div>';
+        html += '<div><div id="rm-riwayat-anamnesis"></div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Anamnesis</label><textarea id="rm-anamnesis" rows="2" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm" placeholder="Riwayat penyakit sekarang, riwayat penyakit dahulu, alergi..."></textarea></div>';
+        html += '<div><div id="rm-riwayat-fisik"></div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Pemeriksaan Fisik</label><textarea id="rm-fisik" rows="2" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm" placeholder="TD, Nadi, RR, Suhu, GCS, Status Generalis..."></textarea></div>';
+        html += '<div><div id="rm-riwayat-diagnosa"></div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Diagnosa</label><input type="text" id="rm-diagnosa" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm" placeholder="Suspek ISPA, Myalgia, dll"></div>';
         html += '</div>';
 
         // TINDAKAN
@@ -91,6 +114,7 @@ window.AppKlinikRekamMedis = {
 
         // CATATAN TAMBAHAN & TOMBOL SIMPAN
         html += '<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">';
+        html += '<div id="rm-riwayat-catatan"></div>';
         html += '<label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Catatan / Resep (Opsional)</label>';
         html += '<textarea id="rm-catatan" rows="2" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm" placeholder="Informasi tambahan untuk apotek atau tindak lanjut..."></textarea>';
         html += '</div>';
@@ -110,6 +134,56 @@ window.AppKlinikRekamMedis = {
                 AppKlinikRekamMedis.simpan();
             });
         }, 100);
+
+        // TAMBAHAN (permintaan user): tampilkan info rekam medis kunjungan sebelumnya
+        // (pasien yang sama) di atas kolom-kolom terkait.
+        if (p.pasienId) this.loadRiwayat(p.pasienId);
+    },
+
+    // ===== RIWAYAT RM SEBELUMNYA (PASIEN YANG SAMA) =====
+    // Ambil kunjungan rekam medis terakhir pasien ini (selain kunjungan yang sedang
+    // dibuat sekarang) lalu tampilkan sebagai info singkat di atas kolom terkait,
+    // supaya dokter bisa lihat riwayat tanpa pindah halaman.
+    loadRiwayat: function(pasienId) {
+        db.collection('rekamMedis').where('pasienId', '==', pasienId).get().then(function(snap) {
+            var riwayat = [];
+            snap.forEach(function(doc) { var d = doc.data(); d.id = doc.id; riwayat.push(d); });
+            if (riwayat.length === 0) return; // Pasien baru, belum ada riwayat
+
+            // Urutkan manual (hindari perlu composite index) berdasarkan tanggal, ambil yang terbaru.
+            riwayat.sort(function(a, b) {
+                var ta = a.tanggal || '';
+                var tb = b.tanggal || '';
+                if (ta !== tb) return ta < tb ? 1 : -1;
+                var ca = a.createdAt && a.createdAt.seconds ? a.createdAt.seconds : 0;
+                var cb = b.createdAt && b.createdAt.seconds ? b.createdAt.seconds : 0;
+                return cb - ca;
+            });
+            var terakhir = riwayat[0];
+
+            var fields = [
+                { key: 'keluhan', target: 'rm-riwayat-keluhan', label: 'Keluhan' },
+                { key: 'anamnesis', target: 'rm-riwayat-anamnesis', label: 'Anamnesis' },
+                { key: 'pemeriksaanFisik', target: 'rm-riwayat-fisik', label: 'Pemeriksaan Fisik' },
+                { key: 'diagnosa', target: 'rm-riwayat-diagnosa', label: 'Diagnosa' },
+                { key: 'catatan', target: 'rm-riwayat-catatan', label: 'Catatan/Resep' }
+            ];
+
+            fields.forEach(function(f) {
+                var el = document.getElementById(f.target);
+                if (!el) return;
+                var nilai = terakhir[f.key];
+                if (!nilai) return; // Tidak tampilkan box kalau field itu kosong di kunjungan sebelumnya
+                el.innerHTML = '<div class="mb-1.5 flex items-start gap-1.5 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-500 dark:text-slate-400">' +
+                    '<i data-lucide="history" class="w-3.5 h-3.5 flex-shrink-0 mt-0.5"></i>' +
+                    '<span><span class="font-medium text-slate-600 dark:text-slate-300">' + f.label + ' sebelumnya</span> (' + Utils.escapeHtml(terakhir.tanggal || '-') + '): ' + Utils.escapeHtml(nilai) + '</span>' +
+                    '</div>';
+            });
+
+            if (window.lucide) lucide.createIcons();
+        }).catch(function(err) {
+            console.error('Gagal memuat riwayat RM:', err);
+        });
     },
 
     addTindakan: function() {
