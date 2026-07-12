@@ -3,6 +3,21 @@
  * Antrian Harian Klinik
  */
 
+// FIX: sebelumnya kode ini pakai new Date().toISOString().split('T')[0] untuk
+// mendapatkan tanggal "hari ini". Masalahnya toISOString() selalu memakai UTC,
+// sedangkan WIB = UTC+7. Akibatnya tanggal baru (dan reset antrian) baru
+// dianggap berganti jam 07:00 pagi waktu lokal, bukan jam 00:00 (tengah malam),
+// karena UTC masih "kemarin" sampai jam 7 pagi WIB. getLocalDateStr() di bawah
+// mengambil tanggal dari getFullYear/getMonth/getDate (mengikuti jam lokal
+// perangkat/browser), jadi reset benar-benar terjadi tepat tengah malam.
+function getLocalDateStr(d) {
+    d = d || new Date();
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+}
+
 window.AppKlinikAntrian = {
     data: [],
     pasienList: [],
@@ -18,7 +33,7 @@ window.AppKlinikAntrian = {
     },
 
         init: function() {
-        var today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        var today = getLocalDateStr(); // YYYY-MM-DD (waktu lokal, bukan UTC)
         
         // HAPUS .orderBy('waktuDaftar') agar tidak butuh Composite Index
         var pAntrian = db.collection('antrian').where('tanggal', '==', today).get();
@@ -89,7 +104,7 @@ window.AppKlinikAntrian = {
         // FITUR BARU: sertakan tanggal hari ini supaya display.html bisa mendeteksi data yang
         // sudah "basi" (dari hari sebelum tengah malam) dan otomatis menampilkan tampilan kosong
         // tanpa perlu menunggu Cloud Function/cron — lihat catatan reset tengah malam di display.html.
-        db.collection('pengaturan').doc('antrianDisplay').set({ next: next, tanggal: new Date().toISOString().split('T')[0] }, { merge: true })
+        db.collection('pengaturan').doc('antrianDisplay').set({ next: next, tanggal: getLocalDateStr() }, { merge: true })
             .catch(function(err) { console.error('Gagal sync antrian berikutnya:', err); });
     },
 
@@ -169,7 +184,7 @@ window.AppKlinikAntrian = {
         var dokter = this.dokterList.find(function(d) { return d.id === dokterId; });
 
         var obj = {
-            tanggal: new Date().toISOString().split('T')[0],
+            tanggal: getLocalDateStr(),
             nomorAntrian: 'A-' + nomorUrut,
             pasienId: pasienId,
             namaPasien: pasien ? pasien.nama : '-',
@@ -403,7 +418,7 @@ window.AppKlinikAntrian = {
             ref.set({
                 current: { nomorAntrian: nomorAntrian, namaPasien: namaPasien, namaDokter: namaDokter, waktu: Date.now() },
                 riwayat: riwayat,
-                tanggal: new Date().toISOString().split('T')[0], // FITUR BARU: lihat catatan di syncNextWaiting()
+                tanggal: getLocalDateStr(), // FITUR BARU: lihat catatan di syncNextWaiting()
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             }, { merge: true }).catch(function(err) { console.error('Gagal update display antrian:', err); });
         }).catch(function(err) { console.error('Gagal baca display antrian:', err); });
