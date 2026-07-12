@@ -356,7 +356,9 @@ var menuStructure = {
         { id: 'pembagian', label: 'Pembagian Hasil',  icon: 'pie-chart',   module: 'pengaturan/pembagian' },
         { id: 'tindakan',  label: 'Master Tindakan',  icon: 'stethoscope', module: 'pengaturan/tindakan'  },
         { id: 'gaji',      label: 'Pengaturan Gaji',  icon: 'wallet',      module: 'pengaturan/gaji'      },
-        { id: 'users',     label: 'Kelola Users',     icon: 'user-cog',    module: 'pengaturan/users'     }
+        { id: 'users',     label: 'Kelola Users',     icon: 'user-cog',    module: 'pengaturan/users'     },
+        // BARU: pengaturan logo, running text, video YouTube & tema untuk display.html (TV ruang tunggu)
+        { id: 'display-antrian', label: 'Display Antrian', icon: 'tv', module: 'pengaturan/displayAntrian' }
     ]
 };
 
@@ -370,7 +372,7 @@ var roleAccess = {
     apotek:   ['utama', 'apotek', 'laporan.pengeluaran', 'laporan.penjualanHarian', 'manajemen.absensi'],
     // FIX (permintaan user): admin sekarang punya akses penuh (CRUD) ke modul Keuangan,
     // sementara modul Karyawan untuk admin dibuat view-only (lihat js/manajemen/karyawan.js).
-    admin:    ['utama', 'klinik', 'apotek', 'laporan', 'manajemen', 'pengaturan.profil', 'pengaturan.tindakan'],
+    admin:    ['utama', 'klinik', 'apotek', 'laporan', 'manajemen', 'pengaturan.profil', 'pengaturan.tindakan', 'pengaturan.display-antrian'],
     keuangan: ['utama', 'klinik', 'apotek', 'laporan', 'manajemen', 'keuangan', 'pengaturan']
 };
 

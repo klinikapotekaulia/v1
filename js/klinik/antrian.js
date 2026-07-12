@@ -86,7 +86,10 @@ window.AppKlinikAntrian = {
             return ta - tb;
         });
         var next = menunggu.length ? { nomorAntrian: menunggu[0].nomorAntrian, namaDokter: menunggu[0].namaDokter } : null;
-        db.collection('pengaturan').doc('antrianDisplay').set({ next: next }, { merge: true })
+        // FITUR BARU: sertakan tanggal hari ini supaya display.html bisa mendeteksi data yang
+        // sudah "basi" (dari hari sebelum tengah malam) dan otomatis menampilkan tampilan kosong
+        // tanpa perlu menunggu Cloud Function/cron — lihat catatan reset tengah malam di display.html.
+        db.collection('pengaturan').doc('antrianDisplay').set({ next: next, tanggal: new Date().toISOString().split('T')[0] }, { merge: true })
             .catch(function(err) { console.error('Gagal sync antrian berikutnya:', err); });
     },
 
@@ -400,6 +403,7 @@ window.AppKlinikAntrian = {
             ref.set({
                 current: { nomorAntrian: nomorAntrian, namaPasien: namaPasien, namaDokter: namaDokter, waktu: Date.now() },
                 riwayat: riwayat,
+                tanggal: new Date().toISOString().split('T')[0], // FITUR BARU: lihat catatan di syncNextWaiting()
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             }, { merge: true }).catch(function(err) { console.error('Gagal update display antrian:', err); });
         }).catch(function(err) { console.error('Gagal baca display antrian:', err); });

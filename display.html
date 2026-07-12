@@ -9,30 +9,108 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body {
-    height: 100%;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    background:
+
+  /* ============================================================
+     TEMA (Malam/Terang) — semua warna lewat CSS variable supaya
+     bisa ditukar langsung dengan atribut data-theme di <html>,
+     tanpa reload halaman. Default: Malam (night), sama seperti
+     tampilan sebelumnya.
+     ============================================================ */
+  :root, html[data-theme="night"] {
+    --bg-grad:
       radial-gradient(circle at 15% 15%, rgba(14,165,233,0.10), transparent 40%),
       radial-gradient(circle at 85% 85%, rgba(56,189,248,0.08), transparent 40%),
       linear-gradient(160deg, #060b18 0%, #0a1128 45%, #0d1233 100%);
-    color: #f1f5f9;
-    overflow: hidden;
+    --text-main: #f1f5f9;
+    --text-sub: #94a3b8;
+    --text-faint: #64748b;
+    --header-bg: rgba(255,255,255,0.02);
+    --header-border: rgba(255,255,255,0.07);
+    --brand-sub: #7dd3fc;
+    --panel-current-bg: linear-gradient(155deg, rgba(14,116,144,0.22), rgba(15,23,42,0.55));
+    --panel-current-border: rgba(56,189,248,0.28);
+    --panel-current-shadow: 0 30px 70px -25px rgba(14,165,233,0.35), inset 0 1px 0 rgba(255,255,255,0.05);
+    --panel-next-bg: rgba(255,255,255,0.025);
+    --panel-next-border: rgba(255,255,255,0.08);
+    --tag-current-bg: rgba(56,189,248,0.16); --tag-current-color: #7dd3fc; --tag-current-border: rgba(125,211,252,0.35);
+    --tag-next-bg: rgba(148,163,184,0.14); --tag-next-color: #cbd5e1; --tag-next-border: rgba(203,213,225,0.2);
+    --number-grad: linear-gradient(180deg, #ffffff 0%, #bae6fd 55%, #38bdf8 100%);
+    --empty-color: rgba(241,245,249,0.35);
+    --empty-color-2: rgba(241,245,249,0.3);
+    --footer-bg: rgba(255,255,255,0.02);
+    --footer-border: rgba(255,255,255,0.07);
+    --riwayat-bg: rgba(255,255,255,0.035);
+    --riwayat-border: rgba(255,255,255,0.07);
+    --riwayat-no: #94a3b8;
+    --riwayat-nm: #64748b;
+    --ticker-bg: rgba(255,255,255,0.03);
+    --ticker-border: rgba(255,255,255,0.08);
+    --ticker-label-bg: linear-gradient(135deg, #0ea5e9, #0284c7);
+    --ticker-label-color: #ffffff;
+    --ticker-text-color: #e2e8f0;
+    --ctrl-bg: rgba(255,255,255,0.06);
+    --ctrl-border: rgba(255,255,255,0.14);
+    --ctrl-color: #e2e8f0;
   }
-  .wrap { height: 100vh; display: grid; grid-template-rows: auto 1fr auto; }
+  html[data-theme="light"] {
+    --bg-grad:
+      radial-gradient(circle at 15% 15%, rgba(14,165,233,0.07), transparent 40%),
+      radial-gradient(circle at 85% 85%, rgba(56,189,248,0.06), transparent 40%),
+      linear-gradient(160deg, #f8fafc 0%, #eef2f9 45%, #e9eef7 100%);
+    --text-main: #0f172a;
+    --text-sub: #475569;
+    --text-faint: #64748b;
+    --header-bg: rgba(255,255,255,0.65);
+    --header-border: rgba(15,23,42,0.08);
+    --brand-sub: #0284c7;
+    --panel-current-bg: linear-gradient(155deg, rgba(14,165,233,0.10), rgba(255,255,255,0.85));
+    --panel-current-border: rgba(14,165,233,0.28);
+    --panel-current-shadow: 0 30px 70px -25px rgba(14,165,233,0.25), inset 0 1px 0 rgba(255,255,255,0.6);
+    --panel-next-bg: rgba(255,255,255,0.65);
+    --panel-next-border: rgba(15,23,42,0.08);
+    --tag-current-bg: rgba(14,165,233,0.12); --tag-current-color: #0369a1; --tag-current-border: rgba(3,105,161,0.25);
+    --tag-next-bg: rgba(100,116,139,0.12); --tag-next-color: #334155; --tag-next-border: rgba(51,65,85,0.18);
+    --number-grad: linear-gradient(180deg, #0f172a 0%, #0369a1 55%, #0ea5e9 100%);
+    --empty-color: rgba(15,23,42,0.32);
+    --empty-color-2: rgba(15,23,42,0.28);
+    --footer-bg: rgba(255,255,255,0.55);
+    --footer-border: rgba(15,23,42,0.08);
+    --riwayat-bg: rgba(255,255,255,0.7);
+    --riwayat-border: rgba(15,23,42,0.08);
+    --riwayat-no: #334155;
+    --riwayat-nm: #64748b;
+    --ticker-bg: rgba(255,255,255,0.7);
+    --ticker-border: rgba(15,23,42,0.08);
+    --ticker-label-bg: linear-gradient(135deg, #0ea5e9, #0284c7);
+    --ticker-label-color: #ffffff;
+    --ticker-text-color: #0f172a;
+    --ctrl-bg: rgba(15,23,42,0.06);
+    --ctrl-border: rgba(15,23,42,0.14);
+    --ctrl-color: #0f172a;
+  }
+
+  html, body {
+    height: 100%;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg-grad);
+    color: var(--text-main);
+    overflow: hidden;
+    transition: background 0.4s ease, color 0.4s ease;
+  }
+  .wrap { height: 100vh; display: grid; grid-template-rows: auto 1fr auto auto; }
 
   /* ---------- Header ---------- */
   header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 22px 48px; background: rgba(255,255,255,0.02);
-    border-bottom: 1px solid rgba(255,255,255,0.07);
+    padding: 22px 48px; background: var(--header-bg);
+    border-bottom: 1px solid var(--header-border);
   }
   .brand { display: flex; align-items: center; gap: 18px; }
-  .brand img { width: 54px; height: 54px; border-radius: 14px; background: #fff; padding: 5px; box-shadow: 0 4px 18px rgba(0,0,0,0.35); }
+  .brand img { width: 54px; height: 54px; border-radius: 14px; background: #fff; padding: 5px; box-shadow: 0 4px 18px rgba(0,0,0,0.25); object-fit: contain; }
   .brand h1 { font-size: 21px; font-weight: 800; letter-spacing: 0.2px; }
-  .brand p { font-size: 12.5px; color: #7dd3fc; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 2px; }
+  .brand p { font-size: 12.5px; color: var(--brand-sub); font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 2px; }
 
-  .head-right { display: flex; align-items: center; gap: 26px; }
+  .head-right { display: flex; align-items: center; gap: 20px; }
   .live { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 1.5px; color: #4ade80; text-transform: uppercase; }
   .live .dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 0 0 rgba(74,222,128,0.6); animation: pulseDot 1.8s infinite; }
   @keyframes pulseDot { 0% { box-shadow: 0 0 0 0 rgba(74,222,128,0.55); } 70% { box-shadow: 0 0 0 9px rgba(74,222,128,0); } 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); } }
@@ -41,21 +119,31 @@
 
   #clock { text-align: right; }
   #jam { font-size: 25px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.5px; }
-  #tanggal { font-size: 12.5px; color: #94a3b8; margin-top: 2px; text-transform: capitalize; }
+  #tanggal { font-size: 12.5px; color: var(--text-sub); margin-top: 2px; text-transform: capitalize; }
 
-  /* ---------- Main: two panels ---------- */
+  .ctrl-btn {
+    background: var(--ctrl-bg); border: 1px solid var(--ctrl-border); color: var(--ctrl-color);
+    width: 40px; height: 40px; border-radius: 10px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; font-size: 17px;
+    transition: background 0.2s ease;
+  }
+  .ctrl-btn:hover { background: var(--ctrl-border); }
+
+  /* ---------- Main: panels ---------- */
   main {
     display: grid; grid-template-columns: 1.55fr 1fr; gap: 28px;
-    padding: 34px 48px; min-height: 0;
+    padding: 34px 48px; min-height: 0; transition: grid-template-columns 0.3s ease;
   }
+  main.with-video { grid-template-columns: 1.15fr 0.85fr 1fr; }
+
   .panel {
     border-radius: 26px; padding: 34px 40px; display: flex; flex-direction: column;
     position: relative; overflow: hidden; min-height: 0;
   }
   .panel-current {
-    background: linear-gradient(155deg, rgba(14,116,144,0.22), rgba(15,23,42,0.55));
-    border: 1px solid rgba(56,189,248,0.28);
-    box-shadow: 0 30px 70px -25px rgba(14,165,233,0.35), inset 0 1px 0 rgba(255,255,255,0.05);
+    background: var(--panel-current-bg);
+    border: 1px solid var(--panel-current-border);
+    box-shadow: var(--panel-current-shadow);
     align-items: center; justify-content: center; text-align: center;
   }
   .panel-current::before {
@@ -64,43 +152,51 @@
     pointer-events: none;
   }
   .panel-next {
-    background: rgba(255,255,255,0.025);
-    border: 1px solid rgba(255,255,255,0.08);
+    background: var(--panel-next-bg);
+    border: 1px solid var(--panel-next-border);
     align-items: center; justify-content: center; text-align: center;
   }
+  .panel-video {
+    background: var(--panel-next-bg);
+    border: 1px solid var(--panel-next-border);
+    padding: 16px; align-items: stretch; justify-content: stretch;
+    display: none;
+  }
+  .panel-video.active { display: flex; }
+  .panel-video iframe { width: 100%; height: 100%; border: 0; border-radius: 16px; }
 
   .tag {
     font-size: 13px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
     padding: 7px 18px; border-radius: 999px; margin-bottom: 22px;
   }
-  .tag-current { background: rgba(56,189,248,0.16); color: #7dd3fc; border: 1px solid rgba(125,211,252,0.35); }
-  .tag-next { background: rgba(148,163,184,0.14); color: #cbd5e1; border: 1px solid rgba(203,213,225,0.2); }
+  .tag-current { background: var(--tag-current-bg); color: var(--tag-current-color); border: 1px solid var(--tag-current-border); }
+  .tag-next { background: var(--tag-next-bg); color: var(--tag-next-color); border: 1px solid var(--tag-next-border); }
 
   #nomorCurrent {
     font-size: min(17vw, 200px); font-weight: 900; line-height: 0.95; letter-spacing: -2px;
-    background: linear-gradient(180deg, #ffffff 0%, #bae6fd 55%, #38bdf8 100%);
+    background: var(--number-grad);
     -webkit-background-clip: text; background-clip: text; color: transparent;
-    text-shadow: 0 10px 50px rgba(56,189,248,0.25);
+    text-shadow: 0 10px 50px rgba(56,189,248,0.2);
     position: relative; z-index: 1;
   }
   #namaCurrent { font-size: 34px; font-weight: 700; margin-top: 14px; position: relative; z-index: 1; }
   #dokterCurrent {
-    font-size: 18px; font-weight: 600; color: #7dd3fc; margin-top: 10px;
+    font-size: 18px; font-weight: 600; color: var(--brand-sub); margin-top: 10px;
     display: inline-flex; align-items: center; gap: 8px; position: relative; z-index: 1;
   }
   #dokterCurrent svg { width: 18px; height: 18px; }
-  .empty-current { font-size: 22px; color: rgba(241,245,249,0.35); font-weight: 500; }
+  .empty-current { font-size: 22px; color: var(--empty-color); font-weight: 500; }
 
   #nomorNext {
     font-size: min(9vw, 108px); font-weight: 800; line-height: 1;
-    color: #e2e8f0;
+    color: var(--text-main);
   }
   #dokterNext {
-    font-size: 16px; font-weight: 600; color: #94a3b8; margin-top: 14px;
+    font-size: 16px; font-weight: 600; color: var(--text-sub); margin-top: 14px;
     display: inline-flex; align-items: center; gap: 7px;
   }
   #dokterNext svg { width: 15px; height: 15px; }
-  .empty-next { font-size: 17px; color: rgba(241,245,249,0.3); font-weight: 500; }
+  .empty-next { font-size: 17px; color: var(--empty-color-2); font-weight: 500; }
 
   @keyframes popIn {
     0% { transform: scale(0.82); opacity: 0; }
@@ -110,29 +206,52 @@
   .flash-in { animation: popIn 0.55s cubic-bezier(0.2,0.8,0.2,1); }
 
   @keyframes ringPulse {
-    0% { box-shadow: 0 30px 70px -25px rgba(14,165,233,0.35), inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 0 rgba(56,189,248,0.5); }
-    50% { box-shadow: 0 30px 70px -25px rgba(14,165,233,0.55), inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 14px rgba(56,189,248,0); }
-    100% { box-shadow: 0 30px 70px -25px rgba(14,165,233,0.35), inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 0 rgba(56,189,248,0); }
+    0% { box-shadow: var(--panel-current-shadow), 0 0 0 0 rgba(56,189,248,0.5); }
+    50% { box-shadow: var(--panel-current-shadow), 0 0 0 14px rgba(56,189,248,0); }
+    100% { box-shadow: var(--panel-current-shadow), 0 0 0 0 rgba(56,189,248,0); }
   }
   .panel-current.ring-flash { animation: ringPulse 1.4s ease-out; }
 
   /* ---------- Footer: history strip ---------- */
   footer {
-    background: rgba(255,255,255,0.02); border-top: 1px solid rgba(255,255,255,0.07);
+    background: var(--footer-bg); border-top: 1px solid var(--footer-border);
     padding: 18px 48px 22px;
   }
   footer .ft-label {
-    font-size: 11.5px; letter-spacing: 3px; text-transform: uppercase; color: #64748b;
+    font-size: 11.5px; letter-spacing: 3px; text-transform: uppercase; color: var(--text-faint);
     margin-bottom: 12px; font-weight: 700;
   }
   .riwayat { display: flex; gap: 14px; flex-wrap: wrap; }
   .riwayat .item {
-    background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.07);
+    background: var(--riwayat-bg); border: 1px solid var(--riwayat-border);
     border-radius: 14px; padding: 12px 20px; min-width: 130px;
   }
-  .riwayat .item .no { font-size: 21px; font-weight: 800; color: #94a3b8; letter-spacing: -0.5px; }
-  .riwayat .item .nm { font-size: 12.5px; color: #64748b; margin-top: 3px; font-weight: 500; }
-  .riwayat .empty { font-size: 13px; color: #475569; padding: 10px 0; }
+  .riwayat .item .no { font-size: 21px; font-weight: 800; color: var(--riwayat-no); letter-spacing: -0.5px; }
+  .riwayat .item .nm { font-size: 12.5px; color: var(--riwayat-nm); margin-top: 3px; font-weight: 500; }
+  .riwayat .empty { font-size: 13px; color: var(--text-faint); padding: 10px 0; }
+
+  /* ---------- Running text ticker (berita berjalan) ---------- */
+  .ticker-bar {
+    display: flex; align-items: stretch; height: 52px;
+    background: var(--ticker-bg); border-top: 1px solid var(--ticker-border);
+    overflow: hidden;
+  }
+  .ticker-label {
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    padding: 0 26px; background: var(--ticker-label-bg); color: var(--ticker-label-color);
+    font-size: 13.5px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .ticker-track { flex: 1; overflow: hidden; position: relative; display: flex; align-items: center; }
+  .ticker-text {
+    display: inline-block; white-space: nowrap; padding-left: 100%;
+    font-size: 17.5px; font-weight: 600; color: var(--ticker-text-color);
+    animation: tickerScroll linear infinite;
+  }
+  @keyframes tickerScroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
+  }
 
   #soundBtn {
     position: fixed; top: 22px; right: 48px; z-index: 20;
@@ -142,7 +261,7 @@
   }
 
   @media (max-width: 900px) {
-    main { grid-template-columns: 1fr; }
+    main, main.with-video { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -152,7 +271,7 @@
 
   <header>
     <div class="brand">
-      <img src="logostruk.png" alt="Aulia" onerror="this.style.display='none'">
+      <img id="brandLogo" src="logostruk.png" alt="Aulia" onerror="this.style.display='none'">
       <div>
         <h1>Aulia Apotek &amp; Klinik</h1>
         <p>Display Panggilan Antrian</p>
@@ -164,10 +283,12 @@
         <div id="jam">--:--:--</div>
         <div id="tanggal">-</div>
       </div>
+      <button class="ctrl-btn" id="themeBtn" onclick="toggleTheme()" title="Ganti Tema Terang/Malam">🌙</button>
+      <button class="ctrl-btn" id="fsBtn" onclick="toggleFullscreen()" title="Layar Penuh">⛶</button>
     </div>
   </header>
 
-  <main>
+  <main id="mainGrid">
     <section class="panel panel-current" id="panelCurrent">
       <span class="tag tag-current">Sedang Dilayani</span>
       <div id="areaCurrent">
@@ -181,12 +302,21 @@
         <div class="empty-next">Tidak ada antrian menunggu</div>
       </div>
     </section>
+
+    <section class="panel panel-video" id="panelVideo">
+      <iframe id="videoFrame" src="" title="Video" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+    </section>
   </main>
 
   <footer>
     <div class="ft-label">Riwayat Panggilan</div>
     <div class="riwayat" id="riwayat"><span class="empty">Belum ada panggilan</span></div>
   </footer>
+
+  <div class="ticker-bar">
+    <div class="ticker-label" id="tickerLabel">INFO</div>
+    <div class="ticker-track"><div class="ticker-text" id="tickerText">Memuat pengumuman…</div></div>
+  </div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -195,14 +325,25 @@
 // ============================================================
 // Halaman ini BERDIRI SENDIRI (bukan bagian dari SPA index.html),
 // dibuat untuk dibuka di TV / monitor ruang tunggu tanpa perlu login.
-// Membaca dokumen 'pengaturan/antrianDisplay' secara real-time:
-//   - field 'current' & 'riwayat' ditulis oleh js/klinik/antrian.js
-//     saat tombol "Panggil"/"Panggil Ulang" dipakai.
-//   - field 'next' ditulis oleh js/klinik/antrian.js (syncNextWaiting)
-//     setiap kali daftar antrian dimuat ulang, berisi nomor pasien
-//     menunggu paling depan (TANPA nama, demi privasi pasien yang
-//     belum resmi dipanggil).
-// Firestore Rules mengizinkan READ PUBLIK khusus dokumen ini.
+//
+// Membaca 2 dokumen Firestore secara real-time:
+//   1. 'pengaturan/antrianDisplay'          → data ANTRIAN (current/next/riwayat),
+//      ditulis oleh js/klinik/antrian.js.
+//   2. 'pengaturan/antrianDisplaySettings'   → PENGATURAN TAMPILAN (logo, running
+//      text, link YouTube, tema default), ditulis oleh js/pengaturan/displayAntrian.js.
+//
+// FITUR:
+//   - Tema Terang/Malam (tombol 🌙, tersimpan per-perangkat di localStorage)
+//   - Tombol Layar Penuh (Fullscreen API)
+//   - Running text (berita berjalan) dgn label kolom ikonik, keduanya editable
+//     dari menu Pengaturan > Display Antrian di aplikasi utama
+//   - Logo bisa diganti lewat menu yang sama (disimpan sebagai base64)
+//   - Panel Video YouTube (link editable), otomatis muncul/hilang sesuai pengaturan
+//   - "Reset tengah malam": begitu tanggal berganti, data panggilan hari
+//     sebelumnya otomatis dianggap basi & tampilan kembali ke kondisi kosong,
+//     TANPA perlu Cloud Function/cron terpisah (lihat isDataBasi() & renderFromData()).
+//
+// Firestore Rules mengizinkan READ PUBLIK khusus kedua dokumen ini.
 // ============================================================
 const firebaseConfig = {
   apiKey: "AIzaSyDXuiTRwHttekv5iy6rk8RJA_pVL25v-U4",
@@ -216,7 +357,10 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
 let lastNomor = null;
+let lastAntrianData = null; // snapshot data terakhir dari 'antrianDisplay', dipakai ulang oleh timer reset tengah malam
 const ICON_DOKTER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 0 0-5 5v2a5 5 0 0 0 10 0V7a5 5 0 0 0-5-5Z"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/></svg>';
+
+function todayStr() { return new Date().toISOString().split('T')[0]; }
 
 // ---------- Jam & tanggal ----------
 function tickClock() {
@@ -228,6 +372,37 @@ function tickClock() {
 }
 setInterval(tickClock, 1000);
 tickClock();
+
+// ---------- Tema Terang/Malam ----------
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('themeBtn').textContent = (theme === 'light') ? '☀️' : '🌙';
+}
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'night';
+  const next = (current === 'light') ? 'night' : 'light';
+  applyTheme(next);
+  localStorage.setItem('displayTheme', next); // per-perangkat: TV ini ingat pilihan manual terakhir
+}
+// Tema awal: pakai pilihan manual perangkat ini kalau ada, kalau belum pernah
+// diganti manual maka ikuti 'defaultTema' dari pengaturan (lihat listener settings di bawah).
+(function initTheme() {
+  const saved = localStorage.getItem('displayTheme');
+  applyTheme(saved || 'night');
+})();
+
+// ---------- Layar Penuh ----------
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(function() {});
+  } else {
+    document.exitFullscreen().catch(function() {});
+  }
+}
+document.addEventListener('fullscreenchange', function() {
+  document.getElementById('fsBtn').textContent = document.fullscreenElement ? '⛶' : '⛶';
+  document.getElementById('fsBtn').title = document.fullscreenElement ? 'Keluar Layar Penuh' : 'Layar Penuh';
+});
 
 // ---------- Chime (Web Audio API, tanpa file audio eksternal) ----------
 function mainkanChime() {
@@ -288,6 +463,9 @@ function renderCurrent(data, isBaru) {
     }, 650);
   }
 }
+function renderCurrentEmpty() {
+  document.getElementById('areaCurrent').innerHTML = '<div class="empty-current">Menunggu panggilan pertama…</div>';
+}
 
 // ---------- Render: panel "Antrian Berikutnya" ----------
 function renderNext(next) {
@@ -314,28 +492,108 @@ function renderRiwayat(list) {
   `).join('');
 }
 
-// ---------- Listener real-time ----------
+// ---------- Reset tengah malam (tanpa Cloud Function) ----------
+// Data 'antrianDisplay' dianggap BASI kalau field 'tanggal' yang tersimpan
+// bukan hari ini (mis. TV menyala dari semalam & belum ada panggilan baru
+// sejak lewat tengah malam). Begitu basi, tampilan current/next/riwayat
+// dikosongkan lagi seolah baru mulai — otomatis "reset" jam 12 malam murni
+// dari sisi tampilan, karena nomor antrian itu sendiri memang sudah dihitung
+// ulang dari 1 setiap hari oleh js/klinik/antrian.js (query per tanggal).
+function isDataBasi(data) {
+  return !!(data && data.tanggal && data.tanggal !== todayStr());
+}
+function renderFromData(data) {
+  if (!data || isDataBasi(data)) {
+    lastNomor = null;
+    renderCurrentEmpty();
+    renderNext(null);
+    renderRiwayat([]);
+    return;
+  }
+  if (data.current) {
+    const isBaru = data.current.nomorAntrian !== lastNomor;
+    lastNomor = data.current.nomorAntrian;
+    renderCurrent(data.current, isBaru);
+  } else {
+    renderCurrentEmpty();
+  }
+  renderNext(data.next || null);
+  renderRiwayat(data.riwayat);
+}
+
+// Cek ulang setiap menit — menangkap kasus tengah malam lewat TANPA ada
+// panggilan baru yang memicu onSnapshot (jadi datanya sendiri tidak berubah,
+// tapi "hari ini" berubah).
+setInterval(() => { if (lastAntrianData) renderFromData(lastAntrianData); }, 60000);
+
+// ---------- Listener real-time: data antrian ----------
 db.collection('pengaturan').doc('antrianDisplay').onSnapshot(function(doc) {
   const live = document.getElementById('liveStatus');
   live.classList.remove('off');
   live.innerHTML = '<span class="dot"></span>Live';
 
-  if (!doc.exists) return;
-  const data = doc.data();
-
-  if (data.current) {
-    const isBaru = data.current.nomorAntrian !== lastNomor;
-    lastNomor = data.current.nomorAntrian;
-    renderCurrent(data.current, isBaru);
-  }
-  renderNext(data.next || null);
-  renderRiwayat(data.riwayat);
+  lastAntrianData = doc.exists ? doc.data() : null;
+  renderFromData(lastAntrianData);
 }, function(err) {
   const live = document.getElementById('liveStatus');
   live.classList.add('off');
   live.innerHTML = '<span class="dot"></span>Terputus';
   console.error(err);
 });
+
+// ---------- Ambil ID video YouTube dari berbagai format link ----------
+function parseYoutubeId(link) {
+  if (!link) return null;
+  link = link.trim();
+  if (/^[a-zA-Z0-9_-]{11}$/.test(link)) return link; // sudah berupa ID langsung
+  const m = link.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+// ---------- Listener real-time: pengaturan tampilan (logo, running text, video, tema) ----------
+let themeManualOverride = !!localStorage.getItem('displayTheme');
+db.collection('pengaturan').doc('antrianDisplaySettings').onSnapshot(function(doc) {
+  const s = doc.exists ? doc.data() : {};
+
+  // Logo
+  const logoEl = document.getElementById('brandLogo');
+  if (s.logoBase64) { logoEl.src = s.logoBase64; logoEl.style.display = ''; }
+  else { logoEl.src = 'logostruk.png'; }
+
+  // Running text + label ikonik
+  document.getElementById('tickerLabel').textContent = s.runningLabel || 'INFO';
+  const tickerText = document.getElementById('tickerText');
+  tickerText.textContent = s.runningText || 'Selamat datang di Aulia Apotek & Klinik.';
+  // Kecepatan disesuaikan panjang teks supaya kecepatan geraknya konsisten,
+  // bukan makin cepat/lambat cuma karena teksnya pendek/panjang.
+  const durasi = Math.max(12, tickerText.textContent.length * 0.18);
+  tickerText.style.animationDuration = durasi + 's';
+
+  // Video YouTube
+  const videoId = s.tampilkanVideo ? parseYoutubeId(s.youtubeLink) : null;
+  const mainGrid = document.getElementById('mainGrid');
+  const panelVideo = document.getElementById('panelVideo');
+  const frame = document.getElementById('videoFrame');
+  if (videoId) {
+    frame.src = 'https://www.youtube.com/embed/' + videoId + '?autoplay=1&mute=1&loop=1&playlist=' + videoId + '&rel=0&modestbranding=1';
+    panelVideo.classList.add('active');
+    mainGrid.classList.add('with-video');
+  } else {
+    frame.src = '';
+    panelVideo.classList.remove('active');
+    mainGrid.classList.remove('with-video');
+  }
+
+  // Tema default — HANYA dipakai kalau perangkat ini belum pernah di-toggle manual
+  if (!themeManualOverride && s.defaultTema) {
+    applyTheme(s.defaultTema);
+  }
+}, function(err) { console.error('Gagal memuat pengaturan display:', err); });
+
+// Tandai override manual setiap kali tombol tema ditekan, supaya listener
+// pengaturan di atas berhenti menimpa pilihan staf di perangkat ini.
+const _origToggleTheme = toggleTheme;
+toggleTheme = function() { _origToggleTheme(); themeManualOverride = true; };
 
 // Sebagian browser TV/kiosk memblokir audio/TTS otomatis sebelum ada
 // interaksi pengguna. Tampilkan tombol manual kalau itu terjadi.
