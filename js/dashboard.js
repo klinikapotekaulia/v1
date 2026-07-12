@@ -178,7 +178,10 @@ window.AppDashboard = {
 
             // Chart Ringkasan Penjualan Hari Ini dengan Date Range Picker
             html += '<div class="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 mb-6">';
-            html += '  <div id="daily-sales-chart" class="w-full min-h-[420px]"></div>';
+            // FIX: pakai height tetap (bukan cuma min-h) — Recharts ResponsiveContainer & div
+            // "h-full" di dalamnya butuh tinggi parent yang PASTI (bukan auto+min-height) supaya
+            // grafik "Tren Penjualan Periode" ikut ter-render, bukan cuma tampilan "Hari Ini".
+            html += '  <div id="daily-sales-chart" class="w-full" style="height:440px"></div>';
             html += '</div>';
 
             html += '<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">';
@@ -224,7 +227,7 @@ window.AppDashboard = {
 
             // Chart Ringkasan Penjualan Hari Ini dengan Date Range Picker
             html += '<div class="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 mb-6">';
-            html += '  <div id="daily-sales-chart" class="w-full min-h-[420px]"></div>';
+            html += '  <div id="daily-sales-chart" class="w-full" style="height:440px"></div>';
             html += '</div>';
 
             html += '<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">';
@@ -294,7 +297,7 @@ window.AppDashboard = {
 
             // Chart Ringkasan Penjualan Hari Ini dengan Date Range Picker
             html += '<div class="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 mb-6">';
-            html += '  <div id="daily-sales-chart" class="w-full min-h-[420px]"></div>';
+            html += '  <div id="daily-sales-chart" class="w-full" style="height:440px"></div>';
             html += '</div>';
 
             html += '<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">';
