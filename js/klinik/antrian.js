@@ -118,7 +118,15 @@ window.AppKlinikAntrian = {
         if (!isDokter) {
             // FORM TAMBAH ANTRIAN
             html += '<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 mb-6">';
-            html += '<h3 class="font-semibold text-gray-800 dark:text-white mb-4">Tambah ke Antrian</h3>';
+            html += '<div class="flex items-center justify-between mb-4">';
+            html += '<h3 class="font-semibold text-gray-800 dark:text-white">Tambah ke Antrian</h3>';
+            // TAMBAHAN: tombol untuk mengosongkan layar TV (display.html) secara manual.
+            // Dipakai kalau ada nomor yang "nyangkut" di layar (mis. pasien terakhir sudah
+            // selesai tapi tidak ada panggilan baru lagi setelahnya, jadi nomor lama terus
+            // tertampil). Ini hanya menghapus tampilan di TV, TIDAK mengubah/menghapus data
+            // antrian pasien di daftar bawah ini.
+            html += '<button onclick="AppKlinikAntrian.resetDisplay()" class="text-xs bg-slate-100 hover:bg-red-50 hover:text-red-600 dark:bg-slate-700 dark:hover:bg-red-900/20 text-slate-500 px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 transition"><i data-lucide="monitor-x" class="w-3.5 h-3.5"></i> Reset Tampilan Display</button>';
+            html += '</div>';
             html += '<div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">';
 
             html += '<div>';
@@ -369,6 +377,26 @@ window.AppKlinikAntrian = {
         html += '</div>';
         container.innerHTML = html;
         lucide.createIcons();
+    },
+
+    // TAMBAHAN: kosongkan tampilan layar TV (display.html) secara manual.
+    // Dipakai staf saat ada nomor yang "nyangkut" di layar — misalnya pasien
+    // terakhir hari itu sudah selesai dilayani, tidak ada panggilan baru lagi
+    // setelahnya, jadi nomor lama terus tertampil sampai lewat tengah malam.
+    // Hanya menghapus field current/next/riwayat di dokumen bersama Firestore;
+    // TIDAK menyentuh data antrian pasien (status, riwayat kunjungan, dst).
+    resetDisplay: function() {
+        if (!confirm('Kosongkan tampilan di layar display sekarang?\n\nIni hanya menghapus nomor yang tampil di layar TV, data antrian pasien tidak akan berubah.')) return;
+        db.collection('pengaturan').doc('antrianDisplay').set({
+            current: null,
+            next: null,
+            riwayat: [],
+            tanggal: getLocalDateStr()
+        }, { merge: true }).then(function() {
+            Utils.toast('Tampilan display berhasil dikosongkan.', 'success');
+        }).catch(function(err) {
+            Utils.toast('Gagal reset display: ' + err.message, 'error');
+        });
     },
 
     panggil: function(id) {
