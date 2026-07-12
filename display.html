@@ -360,7 +360,17 @@ let lastNomor = null;
 let lastAntrianData = null; // snapshot data terakhir dari 'antrianDisplay', dipakai ulang oleh timer reset tengah malam
 const ICON_DOKTER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 0 0-5 5v2a5 5 0 0 0 10 0V7a5 5 0 0 0-5-5Z"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/></svg>';
 
-function todayStr() { return new Date().toISOString().split('T')[0]; }
+// FIX: toISOString() selalu UTC. Untuk WIB (UTC+7), itu membuat "hari ini"
+// baru dianggap berganti jam 07:00 pagi lokal (bukan jam 00:00), sehingga
+// reset tengah malam telat 7 jam. Ambil tanggal dari getFullYear/getMonth/
+// getDate (waktu lokal perangkat) supaya reset benar-benar tepat tengah malam.
+function todayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
 
 // ---------- Jam & tanggal ----------
 function tickClock() {
