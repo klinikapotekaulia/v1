@@ -1,7 +1,14 @@
 /**
  * js/keuangan/payroll.js
- * Proses Payroll (Gaji & Pembagian Hasil) Bulanan
+ * Proses Payroll (Gaji & Pembagian Hasil)
  * Logic akurat: Pecahan Jasa Resep, Tuslah, Omzet, Uang Makan, Transport, Racik.
+ *
+ * FITUR BARU (skema bayar per karyawan): setiap karyawan sekarang punya periode akumulasi
+ * SENDIRI-SENDIRI (payrollPeriode/{karyawanId}), bukan 1 dokumen 'global' untuk semua orang.
+ * Ini dibutuhkan karena ada dokter yang dibayar per hari praktek — dia bisa dibayarkan
+ * kapan saja lewat tombol "Bayarkan" di barisnya sendiri, TANPA menunggu atau ikut mereset
+ * periode karyawan lain. Tombol "Bayarkan Semua" tetap ada untuk membayar seluruh karyawan
+ * sekaligus (masing-masing tetap direset sesuai periodenya sendiri-sendiri).
  */
 
 window.AppKeuanganPayroll = {
@@ -11,24 +18,22 @@ window.AppKeuanganPayroll = {
     configGaji: null,
     configPembagian: null,
     kalkulasiGaji: [],
-    dataTHR: {}, // FITUR BARU: saldo tabungan THR { karyawanId: { saldo, updatedAt } }
-    psaReal: null, // FITUR BARU: ringkasan sisa PSA riil bulan berjalan
+    dataTHR: {}, // saldo tabungan THR { karyawanId: { saldo, updatedAt } }
+    psaReal: null, // ringkasan PSA riil BULAN KALENDER berjalan (informasi saja, lihat _hitungPSAdariRekap)
 
-    // FITUR BARU: Pendapatan karyawan & pembagian hasil sekarang dihitung sebagai SALDO
-    // BERJALAN sejak terakhir kali dibayarkan (bukan per kalender bulan). periodeMulai
-    // diambil dari dokumen payrollPeriode/global dan HANYA berubah saat tombol "Bayarkan"
-    // ditekan — perubahan pengaturan pembagian hasil (js/pengaturan/pembagian.js) TIDAK
-    // memengaruhi/mereset periode ini.
-    periodeMulai: null,      // 'YYYY-MM-DD' — awal periode yang belum dibayarkan
-    periodeSampai: null,     // 'YYYY-MM-DD' — hari ini, batas akhir perhitungan
-    terakhirDibayar: null,   // info tampilan saja: { tanggal, oleh, jumlah }
+    // FITUR BARU: periode "belum dibayar" sekarang PER KARYAWAN: { karyawanId: { mulai,
+    // terakhirDibayar, terakhirDibayarOleh, terakhirJumlah } }. Diambil dari koleksi
+    // payrollPeriode yang doc-id-nya sekarang adalah karyawanId (dulu 1 doc 'global' untuk semua).
+    periodeMap: {},
+    defaultAwalBulan: null,  // fallback awal periode utk karyawan yang belum pernah dibayar
+    periodeSampaiGlobal: null, // hari ini — batas akhir perhitungan, SAMA untuk semua karyawan
 
     render: function() {
         var html = '<div class="page-enter max-w-7xl">'; // Diperlebar biar muat semua kolom
         html += '  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">';
         html += '    <div>';
         html += '      <h2 class="text-xl font-bold text-gray-800 dark:text-white">Payroll Karyawan</h2>';
-        html += '      <p class="text-sm text-slate-500 dark:text-slate-400">Gaji & pembagian hasil dihitung otomatis, akumulasi sejak terakhir dibayarkan</p>';
+        html += '      <p class="text-sm text-slate-500 dark:text-slate-400">Gaji & pembagian hasil dihitung otomatis per karyawan, akumulasi sejak masing-masing terakhir dibayarkan</p>';
         html += '    </div>';
         html += '    <button onclick="AppKeuanganPayroll.init()" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm px-4 py-2 rounded-lg font-medium flex items-center gap-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Muat Ulang</button>';
         html += '  </div>';
@@ -42,7 +47,6 @@ window.AppKeuanganPayroll = {
         var self = this;
         var role = window.currentRole || 'apotek';
 
-        // FIX (permintaan user): Admin sekarang punya akses CRUD penuh ke modul Keuangan juga.
         if (role !== 'keuangan' && role !== 'admin') {
             document.getElementById('payroll-content').innerHTML = '<div class="bg-red-50 text-red-600 p-4 rounded-lg text-center font-semibold">Akses Ditolak. Halaman ini khusus Keuangan/Admin.</div>';
             return;
@@ -51,30 +55,37 @@ window.AppKeuanganPayroll = {
         var container = document.getElementById('payroll-content');
         if (container) container.innerHTML = '<div class="flex justify-center py-20"><div class="spinner"></div></div>';
 
-        // FITUR BARU: ambil periode berjalan (sejak kapan pendapatan belum dibayarkan) dulu,
-        // baru query transaksi/absensi pakai rentang itu — BUKAN pakai bulan kalender.
-        db.collection('payrollPeriode').doc('global').get().then(function(periodeDoc) {
+        // FITUR BARU: ambil periode SEMUA karyawan (bukan 1 doc 'global') dulu, supaya kita tahu
+        // dari tanggal berapa paling awal kita perlu ambil data transaksi/absensi.
+        db.collection('payrollPeriode').get().then(function(periodeSnap) {
             var today = new Date().toISOString().split('T')[0];
-            var defaultAwal = today.slice(0, 7) + '-01'; // fallback: awal bulan berjalan (pemakaian pertama kali)
+            var defaultAwal = today.slice(0, 7) + '-01'; // fallback: awal bulan berjalan (karyawan yang belum pernah dibayar)
+            self.defaultAwalBulan = defaultAwal;
+            self.periodeSampaiGlobal = today;
 
-            var periode = periodeDoc.exists ? periodeDoc.data() : null;
-            self.periodeMulai = (periode && periode.mulai) ? periode.mulai : defaultAwal;
-            self.periodeSampai = today;
-            self.terakhirDibayar = periode ? {
-                tanggal: periode.terakhirDibayar || null,
-                oleh: periode.terakhirDibayarOleh || '-',
-                jumlah: periode.terakhirJumlah || 0
-            } : null;
+            self.periodeMap = {};
+            var earliestMulai = defaultAwal;
+            periodeSnap.forEach(function(doc) {
+                var d = doc.data();
+                var mulai = d.mulai || defaultAwal;
+                self.periodeMap[doc.id] = {
+                    mulai: mulai,
+                    terakhirDibayar: d.terakhirDibayar || null,
+                    terakhirDibayarOleh: d.terakhirDibayarOleh || '-',
+                    terakhirJumlah: d.terakhirJumlah || 0
+                };
+                if (mulai < earliestMulai) earliestMulai = mulai;
+            });
 
-            var startDate = self.periodeMulai;
-            var endDate = self.periodeSampai;
-
+            // Query transaksi & absensi dari tanggal PALING AWAL di antara seluruh karyawan s/d hari
+            // ini (superset) — nanti masing-masing karyawan hanya memakai transaksi sejak periode
+            // MULAI miliknya sendiri (lihat _hitungRekapPeriode).
             var pKary = db.collection('karyawan').where('status', '==', 'aktif').get();
-            var pTrx = db.collection('transaksi').where('tanggal', '>=', startDate).where('tanggal', '<=', endDate).get();
-            var pAbsen = db.collection('absensi').where('tanggal', '>=', startDate).where('tanggal', '<=', endDate).get();
+            var pTrx = db.collection('transaksi').where('tanggal', '>=', earliestMulai).where('tanggal', '<=', today).get();
+            var pAbsen = db.collection('absensi').where('tanggal', '>=', earliestMulai).where('tanggal', '<=', today).get();
             var pCfgGaji = db.collection('pengaturanGaji').doc('global').get();
             var pCfgBagi = db.collection('pengaturanPembagian').doc('global').get();
-            var pTHR = db.collection('thrTabungan').get(); // FITUR BARU: saldo tabungan THR per karyawan
+            var pTHR = db.collection('thrTabungan').get();
 
             return Promise.all([pKary, pTrx, pAbsen, pCfgGaji, pCfgBagi, pTHR]);
         }).then(function(results) {
@@ -90,7 +101,7 @@ window.AppKeuanganPayroll = {
             self.configGaji = results[3].exists ? results[3].data() : { apotek: [], klinik: [] };
             self.configPembagian = results[4].exists ? results[4].data() : {};
 
-            // FITUR BARU: peta saldo THR tersimpan { karyawanId: { saldo, updatedAt } }
+            // peta saldo THR tersimpan { karyawanId: { saldo, updatedAt } }
             self.dataTHR = {};
             results[5].forEach(function(doc) { self.dataTHR[doc.id] = doc.data(); });
 
@@ -101,7 +112,7 @@ window.AppKeuanganPayroll = {
         });
     },
 
-        hitungPayroll: function() {
+    hitungPayroll: function() {
         try {
             this._hitungPayrollInner();
         } catch (err) {
@@ -133,34 +144,35 @@ window.AppKeuanganPayroll = {
         return new Date(iso + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
     },
 
-    _hitungPayrollInner: function() {
-        var self = this;
-        this.kalkulasiGaji = [];
+    // FITUR BARU: periode "mulai" milik satu karyawan tertentu (default: awal bulan kalender
+    // berjalan kalau karyawan itu belum pernah dibayar / belum punya dokumen payrollPeriode).
+    _mulaiKaryawan: function(karyawanId) {
+        var p = this.periodeMap[karyawanId];
+        return (p && p.mulai) ? p.mulai : this.defaultAwalBulan;
+    },
 
-        // 1. KALKULASI GLOBAL BULAN INI
-        var rekapDokter = {}; 
-        var totalLabaObat = 0; 
-        var totalPembulatan = 0; 
-        var totalTuslahKlinik = 0;
-        var totalTuslahApotek = 0;
-        var totalNilaiRacik = 0; 
+    // FITUR BARU: hitung rekap dokter & total pool HANYA dari transaksi tanggal >= mulaiTgl.
+    // Dipakai dua kali: (1) per karyawan dengan periode mulainya masing-masing, dan
+    // (2) untuk kartu ringkasan PSA bulan kalender berjalan.
+    _hitungRekapPeriode: function(mulaiTgl) {
+        var cfg = this.configPembagian || {};
+        var nilaiRacikConfig = (cfg.racikObat) ? (cfg.racikObat.nilai || 0) : 0;
 
-        var cfg = this.configPembagian;
-        var nilaiRacikConfig = (cfg && cfg.racikObat) ? (cfg.racikObat.nilai || 0) : 0;
+        var rekapDokter = {};
+        var totalLabaObat = 0, totalPembulatan = 0, totalTuslahKlinik = 0, totalTuslahApotek = 0, totalNilaiRacik = 0, jmlResepLuar = 0;
 
         this.dataTransaksi.forEach(function(t) {
-            // Hitung Laba Obat & Pembulatan
+            if (!t.tanggal || t.tanggal < mulaiTgl) return; // di luar window periode ini
+
             var omzetObat = t.items ? t.items.reduce(function(s, i) { return s + (i.jumlah * i.hargaJual); }, 0) : 0;
             var hppObat = t.items ? t.items.reduce(function(s, i) { return s + (i.jumlah * (i.hargaBeli || 0)); }, 0) : 0;
             totalLabaObat += (omzetObat - hppObat);
             totalPembulatan += (t.pembulatan || 0);
 
-            // Hitung Racik
             if (t.racikanItems && t.racikanItems.length > 0) {
                 totalNilaiRacik += (t.racikanItems.length * nilaiRacikConfig);
             }
 
-            // Rekap Jasa Resep Dokter (Klinik & Luar)
             if (t.tipe === 'resep_klinik' && t.dokterId) {
                 if (!rekapDokter[t.dokterId]) rekapDokter[t.dokterId] = { jmlResepKlinik: 0, jasaResepLuar: 0 };
                 rekapDokter[t.dokterId].jmlResepKlinik += 1;
@@ -168,8 +180,8 @@ window.AppKeuanganPayroll = {
                 if (!rekapDokter[t.dokterId]) rekapDokter[t.dokterId] = { jmlResepKlinik: 0, jasaResepLuar: 0 };
                 rekapDokter[t.dokterId].jasaResepLuar += (t.jasaResep || 0);
             }
+            if (t.tipe === 'resep_luar') jmlResepLuar++;
 
-            // Hitung Tuslah (FIX: Dari Laba / Harga Jual - Modal)
             if (t.tindakanItems && t.tindakanItems.length > 0) {
                 t.tindakanItems.forEach(function(tin) {
                     var labaTindakan = (tin.hargaJual || 0) - (tin.modal || 0);
@@ -179,62 +191,85 @@ window.AppKeuanganPayroll = {
             }
         });
 
-        // 1b. FITUR BARU: SISA PEMBAGIAN PSA RIIL BULAN INI
-        //     (dihitung dari data transaksi ASLI bulan berjalan, bukan cuma persentase pengaturan)
+        return {
+            rekapDokter: rekapDokter, totalLabaObat: totalLabaObat, totalPembulatan: totalPembulatan,
+            totalTuslahKlinik: totalTuslahKlinik, totalTuslahApotek: totalTuslahApotek,
+            totalNilaiRacik: totalNilaiRacik, jmlResepLuar: jmlResepLuar
+        };
+    },
+
+    // FITUR BARU: turunan rumus PSA (sisa pembagian riil) dari 1 hasil _hitungRekapPeriode.
+    _hitungPSAdariRekap: function(rekap, cfg) {
+        var self = this;
         var sumPersenSlots = function(slots) {
             var t = 0;
             (slots || []).forEach(function(s) { t += (s.persen || 0); });
             return t;
         };
-        var jmlResepLuar = 0;
-        this.dataTransaksi.forEach(function(t) { if (t.tipe === 'resep_luar') jmlResepLuar++; });
 
         var psaResepKlinik = 0;
         if (cfg.resepKlinik && Array.isArray(cfg.resepKlinik)) {
             cfg.resepKlinik.forEach(function(dc) {
-                var rekap = rekapDokter[dc.dokterId];
-                var jml = rekap ? rekap.jmlResepKlinik : 0;
+                var r = rekap.rekapDokter[dc.dokterId];
+                var jml = r ? r.jmlResepKlinik : 0;
                 var sisaPerResep = (dc.nilaiResep || 0) - (dc.jm || 0) - (dc.jd || 0) - (dc.poolKaryKlinik || 0) - (dc.poolKaryApotek || 0);
                 psaResepKlinik += sisaPerResep * jml;
             });
         }
         var sisaResepLuarPerUnit = cfg.resepLuar ? ((cfg.resepLuar.nilaiResep || 0) - (cfg.resepLuar.potonganDokter || 0)) : 0;
-        var psaResepLuar = sisaResepLuarPerUnit * jmlResepLuar;
+        var psaResepLuar = sisaResepLuarPerUnit * rekap.jmlResepLuar;
 
-        var psaTindakanKlinik = totalTuslahKlinik * (100 - sumPersenSlots(self._slotArr(cfg.tindakanKlinik))) / 100;
-        var psaTindakanApotek = totalTuslahApotek * (100 - sumPersenSlots(self._slotArr(cfg.tindakanApotek))) / 100;
+        var psaTindakanKlinik = rekap.totalTuslahKlinik * (100 - sumPersenSlots(self._slotArr(cfg.tindakanKlinik))) / 100;
+        var psaTindakanApotek = rekap.totalTuslahApotek * (100 - sumPersenSlots(self._slotArr(cfg.tindakanApotek))) / 100;
 
-        var poolOmzetTotal = cfg.tunjanganOmzet ? (totalLabaObat * (cfg.tunjanganOmzet.persen || 0)) / 100 : 0;
+        var poolOmzetTotal = cfg.tunjanganOmzet ? (rekap.totalLabaObat * (cfg.tunjanganOmzet.persen || 0)) / 100 : 0;
         var psaOmzet = poolOmzetTotal * (100 - sumPersenSlots(cfg.tunjanganOmzet && cfg.tunjanganOmzet.slot)) / 100;
 
-        var psaUM = totalPembulatan * (100 - sumPersenSlots(cfg.uangMakan && cfg.uangMakan.slot)) / 100;
-        var psaRacik = totalNilaiRacik * (100 - sumPersenSlots(cfg.racikObat && cfg.racikObat.slot)) / 100;
+        var psaUM = rekap.totalPembulatan * (100 - sumPersenSlots(cfg.uangMakan && cfg.uangMakan.slot)) / 100;
+        var psaRacik = rekap.totalNilaiRacik * (100 - sumPersenSlots(cfg.racikObat && cfg.racikObat.slot)) / 100;
 
-        this.psaReal = {
+        return {
             resepKlinik: psaResepKlinik, resepLuar: psaResepLuar,
             tindakanKlinik: psaTindakanKlinik, tindakanApotek: psaTindakanApotek,
             omzet: psaOmzet, uangMakan: psaUM, racikObat: psaRacik,
             total: psaResepKlinik + psaResepLuar + psaTindakanKlinik + psaTindakanApotek + psaOmzet + psaUM + psaRacik
         };
+    },
 
-        // 2. PROSES PER KARYAWAN
+    _hitungPayrollInner: function() {
+        var self = this;
+        this.kalkulasiGaji = [];
+        var cfg = this.configPembagian || {};
+
+        // 1. KARTU RINGKASAN PSA — sekarang murni informasi BULAN KALENDER BERJALAN, TIDAK lagi
+        //    terikat ke periode pembayaran (karena tiap karyawan sekarang punya periode sendiri-sendiri).
+        var rekapBulanIni = this._hitungRekapPeriode(this.defaultAwalBulan);
+        this.psaReal = this._hitungPSAdariRekap(rekapBulanIni, cfg);
+
+        // 2. PROSES PER KARYAWAN — masing-masing pakai window akumulasi SENDIRI (sejak terakhir
+        //    dia dibayarkan), bukan 1 window global untuk semua orang. Ini yang membuat dokter
+        //    yang dibayar per hari praktek bisa dibayarkan sendiri tanpa ikut karyawan lain.
         this.dataKaryawan.forEach(function(k) {
+            var mulaiK = self._mulaiKaryawan(k.id);
+            var rekap = self._hitungRekapPeriode(mulaiK);
+            var rekapDokter = rekap.rekapDokter;
             var depKey = (k.departemen || '').toLowerCase();
-            
+
             // Gaji Pokok
             var gajiPokok = 0;
             var cfgGajiDep = self.configGaji[depKey] || [];
             var gajiCfg = cfgGajiDep.find(function(g) { return g.karyawanId === k.id; });
             if (gajiCfg) gajiPokok = gajiCfg.gajiPokok || 0;
 
-            // Hari Kerja
-            var hadir = self.dataAbsensi.filter(function(a) { return a.userId === k.userId || a.namaKaryawan === k.nama; }).length;
+            // Hari Kerja (hanya dalam window periode karyawan ybs.)
+            var hadir = self.dataAbsensi.filter(function(a) {
+                return (a.userId === k.userId || a.namaKaryawan === k.nama) && a.tanggal >= mulaiK;
+            }).length;
 
             // Jasa Medis (JM) & Jasa Dokter (JD) - Hanya untuk Dokter Klinik
             var jasaMedis = 0, jasaDokter = 0, jasaResepLuar = 0;
             if (rekapDokter[k.id]) {
-                jasaResepLuar = rekapDokter[k.id].jasaResepLuar || 0; // Dapat utuh dari resep luar
-                // FIX: guard supaya tidak crash bila cfg.resepKlinik belum di-set.
+                jasaResepLuar = rekapDokter[k.id].jasaResepLuar || 0;
                 if (cfg.resepKlinik && Array.isArray(cfg.resepKlinik)) {
                     var docConfig = cfg.resepKlinik.find(function(dc) { return dc.dokterId === k.id; });
                     if (docConfig && rekapDokter[k.id].jmlResepKlinik > 0) {
@@ -244,22 +279,15 @@ window.AppKeuanganPayroll = {
                 }
             }
 
-            // Bagian Pool Resep (Klinik & Apotek)
-            // FITUR BARU: jika slot ditandai "Tab THR" di Pengaturan Pembagian, nilainya TIDAK dibayar tunai
-            // bulan ini, melainkan masuk ke tabungan THR karyawan (thrPoolKlinik / thrPoolApotek).
-            // FITUR BARU (skema THR baru): setiap pool sekarang bisa punya "Persen THR" sendiri.
-            // Hasil THR = Pool x Persen THR. Karyawan yang mencentang "Tab THR" mendapat tabungan
-            // = persen bagiannya x Hasil THR TERSEBUT (bukan menukar bagian tunainya).
-            // Bagian tunai tetap dibayar dari sisa pool setelah Hasil THR disisihkan.
+            // Bagian Pool Resep (Klinik & Apotek) — lihat catatan skema THR di versi sebelumnya
             var bagPoolKlinik = 0, bagPoolApotek = 0, thrPoolKlinik = 0, thrPoolApotek = 0;
             if (cfg.resepKlinik) {
                 cfg.resepKlinik.forEach(function(dc) {
-                    var rekap = rekapDokter[dc.dokterId];
-                    if (rekap && rekap.jmlResepKlinik > 0) {
-                        // FIX: guard array kosong agar tidak crash (.find of undefined) pada data lama.
+                    var r = rekapDokter[dc.dokterId];
+                    if (r && r.jmlResepKlinik > 0) {
                         var slotKlinik = (dc.slotKaryKlinik || []).find(function(s) { return s.karyawanId === k.id; });
                         if (slotKlinik) {
-                            var totalPoolK = (dc.poolKaryKlinik || 0) * rekap.jmlResepKlinik;
+                            var totalPoolK = (dc.poolKaryKlinik || 0) * r.jmlResepKlinik;
                             var hasilThrK = totalPoolK * ((dc.thrPersenKlinik || 0) / 100);
                             var sisaCashK = totalPoolK - hasilThrK;
                             bagPoolKlinik += sisaCashK * (slotKlinik.persen / 100);
@@ -268,7 +296,7 @@ window.AppKeuanganPayroll = {
 
                         var slotApotek = (dc.slotKaryApotek || []).find(function(s) { return s.karyawanId === k.id; });
                         if (slotApotek) {
-                            var totalPoolA = (dc.poolKaryApotek || 0) * rekap.jmlResepKlinik;
+                            var totalPoolA = (dc.poolKaryApotek || 0) * r.jmlResepKlinik;
                             var hasilThrA = totalPoolA * ((dc.thrPersenApotek || 0) / 100);
                             var sisaCashA = totalPoolA - hasilThrA;
                             bagPoolApotek += sisaCashA * (slotApotek.persen / 100);
@@ -278,16 +306,14 @@ window.AppKeuanganPayroll = {
                 });
             }
 
-            // Bagian Tuslah/Tindakan (FIX: Sudah menggunakan Laba Tindakan)
-            // FITUR BARU: sama seperti pool resep di atas — Persen THR menyisihkan sebagian pool
-            // tuslah sebagai Hasil THR, dan hanya karyawan yang mencentang "Tab THR" yang menabung.
+            // Bagian Tuslah/Tindakan
             var bagTuslah = 0, thrTuslah = 0;
             var depTindakanKey = (depKey === 'klinik') ? 'tindakanKlinik' : 'tindakanApotek';
             var slotsTindakan = self._slotArr(cfg[depTindakanKey]);
             var persenThrTindakan = self._persenTHR(cfg[depTindakanKey]);
             var mySlotTindakan = slotsTindakan.find(function(s) { return s.karyawanId === k.id; });
             if (mySlotTindakan && mySlotTindakan.persen > 0) {
-                var totalTuslahDep = (depKey === 'klinik') ? totalTuslahKlinik : totalTuslahApotek;
+                var totalTuslahDep = (depKey === 'klinik') ? rekap.totalTuslahKlinik : rekap.totalTuslahApotek;
                 var hasilThrTuslah = totalTuslahDep * (persenThrTindakan / 100);
                 var sisaCashTuslah = totalTuslahDep - hasilThrTuslah;
                 bagTuslah = (sisaCashTuslah * mySlotTindakan.persen) / 100;
@@ -297,7 +323,7 @@ window.AppKeuanganPayroll = {
             // Tunjangan Omzet
             var bagOmzet = 0;
             if (cfg.tunjanganOmzet && cfg.tunjanganOmzet.persen > 0) {
-                var poolOmzet = (totalLabaObat * cfg.tunjanganOmzet.persen) / 100;
+                var poolOmzet = (rekap.totalLabaObat * cfg.tunjanganOmzet.persen) / 100;
                 var mySlotOmzet = self._slotArr(cfg.tunjanganOmzet).find(function(s) { return s.karyawanId === k.id; });
                 if (mySlotOmzet) bagOmzet = (poolOmzet * mySlotOmzet.persen) / 100;
             }
@@ -306,10 +332,10 @@ window.AppKeuanganPayroll = {
             var bagUM = 0;
             if (cfg.uangMakan) {
                 var mySlotUM = self._slotArr(cfg.uangMakan).find(function(s) { return s.karyawanId === k.id; });
-                if (mySlotUM) bagUM = (totalPembulatan * mySlotUM.persen) / 100;
+                if (mySlotUM) bagUM = (rekap.totalPembulatan * mySlotUM.persen) / 100;
             }
 
-            // Transport
+            // Transport (nilai tetap dari pengaturan, tidak berbasis akumulasi transaksi)
             var bagTransport = 0;
             if (cfg.transport) {
                 var mySlotTr = self._slotArr(cfg.transport).find(function(s) { return s.karyawanId === k.id; });
@@ -320,26 +346,27 @@ window.AppKeuanganPayroll = {
             var bagRacik = 0;
             if (cfg.racikObat) {
                 var mySlotRacik = self._slotArr(cfg.racikObat).find(function(s) { return s.karyawanId === k.id; });
-                if (mySlotRacik) bagRacik = (totalNilaiRacik * mySlotRacik.persen) / 100;
+                if (mySlotRacik) bagRacik = (rekap.totalNilaiRacik * mySlotRacik.persen) / 100;
             }
 
-            // Total pendapatan TUNAI bulan ini (porsi THR TIDAK ikut dibayar tunai, lihat di atas)
+            // Total pendapatan TUNAI dalam window periode karyawan ini (porsi THR tidak ikut tunai)
             var totalPendapatan = gajiPokok + jasaMedis + jasaDokter + jasaResepLuar + bagPoolKlinik + bagPoolApotek + bagTuslah + bagOmzet + bagUM + bagTransport + bagRacik;
 
-            // FITUR BARU: akumulasi tabungan THR
             var thrBulanIni = thrPoolKlinik + thrPoolApotek + thrTuslah;
             var thrTersimpan = self.dataTHR[k.id] || {};
             var thrSaldoSebelum = thrTersimpan.saldo || 0;
-            var thrSudahDibayarkan = false; // status pembayaran THR bulan ini (di-set via tombol "Bayarkan THR")
 
             self.kalkulasiGaji.push({
                 karyawanId: k.id, nama: k.nama, departemen: k.departemen, jabatan: k.jabatan,
-                hariKerja: hadir, gajiPokok: gajiPokok, 
+                // FITUR BARU: periode akumulasi MILIK KARYAWAN INI SENDIRI, dipakai saat cetak slip
+                // & saat tombol "Bayarkan" di barisnya ditekan.
+                periodeMulai: mulaiK, periodeSampai: self.periodeSampaiGlobal,
+                hariKerja: hadir, gajiPokok: gajiPokok,
                 jasaMedis: jasaMedis, jasaDokter: jasaDokter, jasaResepLuar: jasaResepLuar,
                 bagPoolKlinik: bagPoolKlinik, bagPoolApotek: bagPoolApotek, bagTuslah: bagTuslah,
                 bagOmzet: bagOmzet, bagUM: bagUM, bagTransport: bagTransport, bagRacik: bagRacik,
                 thrBulanIni: thrBulanIni, thrSaldoSebelum: thrSaldoSebelum,
-                thrSaldoProyeksi: thrSaldoSebelum + thrBulanIni, thrSudahDibayarkan: thrSudahDibayarkan,
+                thrSaldoProyeksi: thrSaldoSebelum + thrBulanIni, thrSudahDibayarkan: false,
                 tunjanganLain: 0, potKasbon: 0, potWisata: 0,
                 totalPendapatan: totalPendapatan, totalGaji: totalPendapatan
             });
@@ -347,28 +374,23 @@ window.AppKeuanganPayroll = {
 
         self.renderTable();
     },
-    
+
     renderTable: function() {
         var container = document.getElementById('payroll-content');
         var html = '';
 
-        // FITUR BARU: Banner periode berjalan — akumulasi pendapatan & pembagian hasil sejak
-        // terakhir dibayarkan (bukan sejak pengaturan pembagian terakhir diubah).
-        html += '<div class="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-xl p-4 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">';
-        html += '  <div>';
-        html += '    <p class="text-sm font-semibold text-primary-800 dark:text-primary-300">Periode Berjalan: ' + this._fmtTgl(this.periodeMulai) + ' &ndash; ' + this._fmtTgl(this.periodeSampai) + '</p>';
-        html += '    <p class="text-xs text-primary-600 dark:text-primary-400">Akumulasi sejak terakhir dibayarkan. Angka akan otomatis reset ke Rp 0 setelah ditekan "Bayarkan".</p>';
-        if (this.terakhirDibayar && this.terakhirDibayar.tanggal) {
-            html += '    <p class="text-[11px] text-primary-500 dark:text-primary-500 mt-1">Pembayaran terakhir: ' + Utils.formatRupiah(this.terakhirDibayar.jumlah) + ' oleh ' + Utils.escapeHtml(this.terakhirDibayar.oleh) + '</p>';
-        }
-        html += '  </div>';
+        // FITUR BARU: banner sekarang menjelaskan bahwa periode berjalan sendiri-sendiri per karyawan
+        // (lihat kolom "Periode" di tiap baris), bukan 1 periode bersama seperti sebelumnya.
+        html += '<div class="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-xl p-4 mb-4">';
+        html += '  <p class="text-sm font-semibold text-primary-800 dark:text-primary-300">Periode akumulasi berjalan sendiri-sendiri per karyawan</p>';
+        html += '  <p class="text-xs text-primary-600 dark:text-primary-400">Tiap karyawan dihitung sejak dia SENDIRI terakhir dibayarkan (lihat kolom Periode). Cocok untuk dokter yang dibayar per hari praktek — tekan "Bayarkan" di barisnya kapan saja tanpa memengaruhi karyawan lain, atau pakai "Bayarkan Semua" di bawah untuk membayar seluruhnya sekaligus.</p>';
         html += '</div>';
 
-        // FITUR BARU: Kartu Ringkasan Sisa Pembagian PSA Riil (dihitung dari data transaksi bulan berjalan)
+        // Kartu Ringkasan Sisa Pembagian PSA Riil — sekarang murni info BULAN KALENDER BERJALAN
         var psa = this.psaReal || {};
         html += '<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 mb-4">';
-        html += '  <h3 class="font-bold text-gray-800 dark:text-white mb-1 flex items-center gap-2"><i data-lucide="landmark" class="w-5 h-5 text-slate-500"></i> Sisa Pembagian PSA Riil Bulan Ini</h3>';
-        html += '  <p class="text-xs text-slate-400 mb-4">Dihitung otomatis dari data transaksi & pengaturan pembagian aktif, bukan sekadar persentase.</p>';
+        html += '  <h3 class="font-bold text-gray-800 dark:text-white mb-1 flex items-center gap-2"><i data-lucide="landmark" class="w-5 h-5 text-slate-500"></i> Sisa Pembagian PSA Riil (Bulan Kalender Berjalan)</h3>';
+        html += '  <p class="text-xs text-slate-400 mb-4">Angka informasi bulan berjalan saja — TIDAK terikat ke periode pembayaran masing-masing karyawan di tabel bawah.</p>';
         html += '  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">';
         html += '    <div class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg"><span class="text-xs text-blue-600">Resep Klinik</span><p class="font-bold text-blue-800 dark:text-blue-300">' + Utils.formatRupiah(psa.resepKlinik) + '</p></div>';
         html += '    <div class="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg"><span class="text-xs text-green-600">Resep Luar</span><p class="font-bold text-green-800 dark:text-green-300">' + Utils.formatRupiah(psa.resepLuar) + '</p></div>';
@@ -386,6 +408,7 @@ window.AppKeuanganPayroll = {
         html += '<table class="w-full text-xs whitespace-nowrap">';
         html += '<thead><tr class="bg-slate-50 dark:bg-slate-900 text-slate-500 uppercase">';
         html += '<th class="px-3 py-3 text-left sticky left-0 z-10 bg-slate-50 dark:bg-slate-900">Karyawan</th>';
+        html += '<th class="px-2 py-3 text-left">Periode</th>';
         html += '<th class="px-2 py-3 text-center">Hadir</th>';
         html += '<th class="px-2 py-3 text-right">Gaji Pokok</th>';
         html += '<th class="px-2 py-3 text-right">JM</th>';
@@ -407,11 +430,12 @@ window.AppKeuanganPayroll = {
         html += '</tr></thead><tbody>';
 
         if (this.kalkulasiGaji.length === 0) {
-            html += '<tr><td colspan="19" class="text-center py-6 text-slate-400">Tidak ada karyawan aktif.</td></tr>';
+            html += '<tr><td colspan="20" class="text-center py-6 text-slate-400">Tidak ada karyawan aktif.</td></tr>';
         } else {
             this.kalkulasiGaji.forEach(function(k, idx) {
                 html += '<tr class="border-t border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50">';
                 html += '<td class="px-3 py-2 sticky left-0 z-10 bg-white dark:bg-slate-800"><p class="font-medium text-gray-800 dark:text-white">' + Utils.escapeHtml(k.nama) + '</p><p class="text-[10px] text-slate-400">' + Utils.escapeHtml(k.departemen || '-') + '</p></td>';
+                html += '<td class="px-2 py-2 text-left text-slate-500 dark:text-slate-400"><span class="text-[10px]">sejak</span><br>' + AppKeuanganPayroll._fmtTgl(k.periodeMulai) + '</td>';
                 html += '<td class="px-2 py-2 text-center">' + k.hariKerja + ' H</td>';
                 html += '<td class="px-2 py-2 text-right text-slate-600 dark:text-slate-300">' + Utils.formatRupiah(k.gajiPokok) + '</td>';
                 html += '<td class="px-2 py-2 text-right text-blue-600">' + Utils.formatRupiah(k.jasaMedis) + '</td>';
@@ -424,10 +448,9 @@ window.AppKeuanganPayroll = {
                 html += '<td class="px-2 py-2 text-right text-sky-600">' + Utils.formatRupiah(k.bagTransport) + '</td>';
                 html += '<td class="px-2 py-2 text-right text-indigo-600">' + Utils.formatRupiah(k.bagRacik) + '</td>';
 
-                // FITUR BARU: Kolom Tabungan THR — saldo proyeksi (saldo lama + akumulasi bulan ini) + tombol bayar/reset
                 html += '<td class="px-2 py-2 text-right bg-amber-50/50 dark:bg-amber-900/10">';
                 html += '<span class="font-semibold text-amber-700 dark:text-amber-400">' + Utils.formatRupiah(k.thrSaldoProyeksi) + '</span>';
-                if (k.thrBulanIni > 0) html += '<p class="text-[10px] text-amber-500">+' + Utils.formatRupiah(k.thrBulanIni) + ' bln ini</p>';
+                if (k.thrBulanIni > 0) html += '<p class="text-[10px] text-amber-500">+' + Utils.formatRupiah(k.thrBulanIni) + ' periode ini</p>';
                 html += '</td>';
                 html += '<td class="px-2 py-2 text-center bg-amber-50/50 dark:bg-amber-900/10">';
                 if (k.thrSaldoProyeksi > 0) {
@@ -441,9 +464,20 @@ window.AppKeuanganPayroll = {
                 html += '<td class="px-1 py-1 text-right"><input type="number" id="tunjangan-' + idx + '" value="0" min="0" oninput="AppKeuanganPayroll.updateTotal(' + idx + ')" class="w-20 px-1 py-1 border border-slate-300 dark:bg-slate-700 dark:text-white rounded text-xs text-right"></td>';
                 html += '<td class="px-1 py-1 text-right"><input type="number" id="kasbon-' + idx + '" value="0" min="0" oninput="AppKeuanganPayroll.updateTotal(' + idx + ')" class="w-20 px-1 py-1 border border-red-300 dark:bg-slate-700 dark:text-white rounded text-xs text-right"></td>';
                 html += '<td class="px-1 py-1 text-right"><input type="number" id="wisata-' + idx + '" value="0" min="0" oninput="AppKeuanganPayroll.updateTotal(' + idx + ')" class="w-20 px-1 py-1 border border-red-300 dark:bg-slate-700 dark:text-white rounded text-xs text-right"></td>';
-                
+
                 html += '<td class="px-3 py-2 text-right font-bold text-emerald-600" id="total-' + idx + '">' + Utils.formatRupiah(k.totalGaji) + '</td>';
-                html += '<td class="px-2 py-2 text-center"><button onclick="AppKeuanganPayroll.cetakSlip(' + idx + ')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded">Cetak</button></td>';
+                html += '<td class="px-2 py-2 text-center">';
+                html += '<div class="flex flex-col gap-1 items-stretch">';
+                html += '<button onclick="AppKeuanganPayroll.cetakSlip(' + idx + ')" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded">Cetak</button>';
+                // FITUR BARU: tombol "Bayarkan" PER KARYAWAN — hanya membayar & mereset periode
+                // karyawan ini sendiri, karyawan lain tidak terpengaruh sama sekali.
+                if (k.totalGaji > 0) {
+                    html += '<button onclick="AppKeuanganPayroll.bayarkanSatuKaryawan(' + idx + ')" class="text-[10px] bg-primary-600 hover:bg-primary-700 text-white px-2 py-1 rounded font-semibold">Bayarkan</button>';
+                } else {
+                    html += '<span class="text-[10px] text-slate-300">Belum ada</span>';
+                }
+                html += '</div>';
+                html += '</td>';
                 html += '</tr>';
             });
         }
@@ -452,8 +486,8 @@ window.AppKeuanganPayroll = {
 
         var totalSemua = this.kalkulasiGaji.reduce(function(sum, k) { return sum + (k.totalGaji || 0); }, 0);
         html += '<div class="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2 mt-4">';
-        html += '  <p class="text-sm text-slate-500 dark:text-slate-400 sm:mr-auto">Total akan dibayarkan: <span class="font-bold text-emerald-600">' + Utils.formatRupiah(totalSemua) + '</span></p>';
-        html += '  <button onclick="AppKeuanganPayroll.bayarkanPayroll()" class="bg-primary-600 hover:bg-primary-700 text-white font-semibold px-6 py-2.5 rounded-lg text-sm flex items-center gap-2"><i data-lucide="banknote" class="w-4 h-4"></i> Bayarkan</button>';
+        html += '  <p class="text-sm text-slate-500 dark:text-slate-400 sm:mr-auto">Total akan dibayarkan (semua karyawan): <span class="font-bold text-emerald-600">' + Utils.formatRupiah(totalSemua) + '</span></p>';
+        html += '  <button onclick="AppKeuanganPayroll.bayarkanPayroll()" class="bg-primary-600 hover:bg-primary-700 text-white font-semibold px-6 py-2.5 rounded-lg text-sm flex items-center gap-2"><i data-lucide="banknote" class="w-4 h-4"></i> Bayarkan Semua</button>';
         html += '</div>';
 
         container.innerHTML = html;
@@ -470,12 +504,12 @@ window.AppKeuanganPayroll = {
         var tunjangan = parseFloat(tunjanganEl.value) || 0;
         var kasbon = parseFloat(kasbonEl.value) || 0;
         var wisata = parseFloat(wisataEl.value) || 0;
-        
+
         var k = this.kalkulasiGaji[idx];
         k.tunjanganLain = tunjangan;
         k.potKasbon = kasbon;
         k.potWisata = wisata;
-        
+
         var totalAkhir = (k.totalPendapatan + tunjangan) - (kasbon + wisata);
         document.getElementById('total-' + idx).textContent = Utils.formatRupiah(totalAkhir);
         k.totalGaji = totalAkhir;
@@ -483,12 +517,12 @@ window.AppKeuanganPayroll = {
 
     cetakSlip: function(idx) {
         var k = this.kalkulasiGaji[idx];
-        var bulan = this._fmtTgl(this.periodeMulai) + ' - ' + this._fmtTgl(this.periodeSampai);
+        var bulan = this._fmtTgl(k.periodeMulai) + ' - ' + this._fmtTgl(k.periodeSampai);
         var w = window.open('', '', 'width=400,height=600');
 
         var html = '<html><head><title>Slip Gaji ' + k.nama + '</title>';
         html += '<style>body{font-family:monospace;font-size:12px;width:80mm;margin:0;padding:10px;color:#000;} h2,p{text-align:center;margin:0;} table{width:100%;} .right{text-align:right;} .bold{font-weight:bold;} hr{border-top:1px dashed #000;margin:8px 0;}</style></head><body>';
-        
+
         html += '<h2 class="bold">SLIP GAJI KARYAWAN</h2>';
         html += '<p>Aulia Apotek Klinik</p><hr>';
         html += '<table>';
@@ -497,7 +531,7 @@ window.AppKeuanganPayroll = {
         html += '<tr><td>Jabatan</td><td>: ' + k.jabatan + '</td></tr>';
         html += '<tr><td>Hadir</td><td>: ' + k.hariKerja + ' Hari</td></tr>';
         html += '</table><hr>';
-        
+
         html += '<table>';
         html += '<tr><td colspan="2" class="bold">PENDAPATAN:</td></tr>';
         html += '<tr><td>Gaji Pokok</td><td class="right">' + Utils.formatRupiah(k.gajiPokok) + '</td></tr>';
@@ -512,7 +546,7 @@ window.AppKeuanganPayroll = {
         if(k.bagRacik > 0) html += '<tr><td>Racik Obat</td><td class="right">' + Utils.formatRupiah(k.bagRacik) + '</td></tr>';
         if(k.tunjanganLain > 0) html += '<tr><td>Tunjangan Lain</td><td class="right">' + Utils.formatRupiah(k.tunjanganLain) + '</td></tr>';
         html += '</table><hr>';
-        
+
         html += '<table>';
         html += '<tr class="bold"><td>TOTAL PENDAPATAN</td><td class="right">' + Utils.formatRupiah(k.totalPendapatan + k.tunjanganLain) + '</td></tr>';
         html += '</table><hr>';
@@ -528,10 +562,10 @@ window.AppKeuanganPayroll = {
         html += '<table>';
         html += '<tr class="bold"><td>TOTAL DITERIMA</td><td class="right">' + Utils.formatRupiah(k.totalGaji) + '</td></tr>';
         html += '</table><hr>';
-        
+
         html += '<p>Penerima,</p><br><br><br>';
         html += '<p class="bold">( ' + k.nama + ' )</p>';
-        
+
         html += '<script>window.onload = function() { window.print(); }<\/script>';
         html += '</body></html>';
 
@@ -539,16 +573,87 @@ window.AppKeuanganPayroll = {
         w.document.close();
     },
 
-    // FITUR BARU: "Bayarkan" — membayar SELURUH pendapatan karyawan (gaji pokok, jasa,
-    // pool resep, tuslah, omzet, uang makan, transport, racik, dst.) yang terakumulasi
-    // sejak terakhir kali dibayarkan (this.periodeMulai) sampai hari ini. Setelah berhasil:
-    // 1) Dicatat sebagai payrollHistory -> otomatis jadi "Beban Gaji Karyawan" yang mengurangi
-    //    Laba Bersih di js/keuangan/laporanKeuangan.js & jurnal js/keuangan/akuntansi.js
-    //    (kedua modul itu sudah membaca payrollHistory, jadi TIDAK perlu diubah — cukup
-    //    tetap isi field 'bulan' dengan bulan tanggal pembayaran, bukan bulan kalender lama).
-    // 2) payrollPeriode/global direset (mulai = besok) supaya perhitungan berikutnya kembali
-    //    ke Rp 0 dan mulai menghitung dari nol lagi — TIDAK terpengaruh oleh perubahan
-    //    pengaturan pembagian hasil, hanya oleh aksi bayar ini.
+    // FITUR BARU: "Bayarkan" PER KARYAWAN — membayar pendapatan SATU karyawan (baris tabel) yang
+    // sudah terakumulasi sejak dia sendiri terakhir dibayarkan, lalu mereset HANYA periode
+    // karyawan ini (payrollPeriode/{karyawanId}). Karyawan lain sama sekali tidak terpengaruh —
+    // inilah yang memungkinkan dokter dibayar per hari praktek tanpa menunggu jadwal bulanan.
+    bayarkanSatuKaryawan: function(idx) {
+        var self = this;
+        var k = this.kalkulasiGaji[idx];
+        if (!k) return;
+
+        this._isPayingSatu = this._isPayingSatu || {};
+        if (this._isPayingSatu[k.karyawanId]) return; // cegah klik dobel
+
+        if (!k.totalGaji || k.totalGaji <= 0) {
+            Utils.toast('Tidak ada pendapatan untuk dibayarkan pada periode ini.', 'info');
+            return;
+        }
+        if (!confirm('Bayarkan pendapatan ' + k.nama + ' periode ' + this._fmtTgl(k.periodeMulai) + ' s/d ' + this._fmtTgl(k.periodeSampai) + ' senilai ' + Utils.formatRupiah(k.totalGaji) + '?\n\nSetelah dibayarkan, akumulasi ' + k.nama + ' akan direset ke Rp 0. Karyawan lain TIDAK terpengaruh.')) return;
+
+        this._isPayingSatu[k.karyawanId] = true;
+        Utils.toast('Memproses pembayaran ' + k.nama + '...', 'info');
+
+        var todayStr = this.periodeSampaiGlobal;
+        var bulanBayar = todayStr.slice(0, 7);
+        var besok = new Date(todayStr + 'T00:00:00');
+        besok.setDate(besok.getDate() + 1);
+        var besokStr = besok.toISOString().split('T')[0];
+
+        var batch = db.batch();
+
+        var histRef = db.collection('payrollHistory').doc();
+        batch.set(histRef, {
+            bulan: bulanBayar,
+            periodeMulai: k.periodeMulai, periodeSampai: k.periodeSampai,
+            karyawanId: k.karyawanId, namaKaryawan: k.nama, departemen: k.departemen,
+            hariKerja: k.hariKerja, gajiPokok: k.gajiPokok,
+            jasaMedis: k.jasaMedis, jasaDokter: k.jasaDokter,
+            bagPoolKlinik: k.bagPoolKlinik, bagPoolApotek: k.bagPoolApotek, bagTuslah: k.bagTuslah,
+            bagOmzet: k.bagOmzet, bagUM: k.bagUM, bagTransport: k.bagTransport, bagRacik: k.bagRacik,
+            thrBulanIni: k.thrBulanIni || 0,
+            tunjanganLain: k.tunjanganLain, potKasbon: k.potKasbon, potWisata: k.potWisata,
+            totalGaji: k.totalGaji, status: 'paid',
+            diprosesOleh: window.currentUserName || 'Keuangan',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        if (k.thrBulanIni > 0) {
+            var thrRef = db.collection('thrTabungan').doc(k.karyawanId);
+            batch.set(thrRef, {
+                karyawanId: k.karyawanId, namaKaryawan: k.nama,
+                saldo: firebase.firestore.FieldValue.increment(k.thrBulanIni),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+        }
+
+        var periodeRef = db.collection('payrollPeriode').doc(k.karyawanId);
+        batch.set(periodeRef, {
+            mulai: besokStr,
+            terakhirDibayar: firebase.firestore.FieldValue.serverTimestamp(),
+            terakhirDibayarOleh: window.currentUserName || 'Keuangan',
+            terakhirJumlah: k.totalGaji,
+            terakhirPeriodeMulai: k.periodeMulai,
+            terakhirPeriodeSampai: k.periodeSampai
+        }, { merge: true });
+
+        batch.commit().then(function() {
+            Utils.toast('Gaji ' + k.nama + ' berhasil dibayarkan! ' + Utils.formatRupiah(k.totalGaji) + ' tercatat sebagai beban gaji karyawan.', 'success');
+            AuditLog.catat({
+                aksi: 'bayar', modul: 'Payroll', koleksi: 'payrollHistory', targetId: k.karyawanId,
+                deskripsi: 'Bayarkan payroll individual: ' + k.nama + ' periode ' + k.periodeMulai + ' s/d ' + k.periodeSampai,
+                nominal: k.totalGaji
+            });
+            self._isPayingSatu[k.karyawanId] = false;
+            self.init();
+        }).catch(function(err) {
+            self._isPayingSatu[k.karyawanId] = false;
+            Utils.toast('Gagal membayarkan gaji ' + k.nama + ': ' + err.message, 'error');
+        });
+    },
+
+    // "Bayarkan Semua" — membayar SELURUH karyawan sekaligus. Setiap karyawan tetap direset
+    // sesuai periodenya SENDIRI-SENDIRI (payrollPeriode/{karyawanId}), bukan 1 dokumen global lagi.
     bayarkanPayroll: function() {
         var self = this;
         if (this._isPaying) return; // cegah klik dobel sebelum batch.commit() sebelumnya selesai
@@ -558,13 +663,13 @@ window.AppKeuanganPayroll = {
             Utils.toast('Tidak ada pendapatan untuk dibayarkan pada periode ini.', 'info');
             return;
         }
-        if (!confirm('Bayarkan seluruh pendapatan karyawan periode ' + this._fmtTgl(this.periodeMulai) + ' s/d ' + this._fmtTgl(this.periodeSampai) + ' senilai ' + Utils.formatRupiah(totalPayroll) + '?\n\nSetelah dibayarkan, akumulasi akan direset ke Rp 0 dan tercatat sebagai beban gaji karyawan.')) return;
+        if (!confirm('Bayarkan seluruh pendapatan SEMUA karyawan (' + this.kalkulasiGaji.length + ' orang) senilai ' + Utils.formatRupiah(totalPayroll) + '?\n\nMasing-masing karyawan punya periode akumulasi sendiri-sendiri; setelah dibayarkan, periode masing-masing akan direset ke Rp 0 dan tercatat sebagai beban gaji karyawan.')) return;
 
         this._isPaying = true;
-        Utils.toast('Memproses pembayaran payroll...', 'info');
+        Utils.toast('Memproses pembayaran payroll semua karyawan...', 'info');
 
-        var todayStr = this.periodeSampai; // hari ini, sudah diisi saat init()
-        var bulanBayar = todayStr.slice(0, 7); // bulan pembayaran (utk kompatibilitas laporan keuangan/akuntansi)
+        var todayStr = this.periodeSampaiGlobal;
+        var bulanBayar = todayStr.slice(0, 7);
         var besok = new Date(todayStr + 'T00:00:00');
         besok.setDate(besok.getDate() + 1);
         var besokStr = besok.toISOString().split('T')[0];
@@ -573,62 +678,46 @@ window.AppKeuanganPayroll = {
         this.kalkulasiGaji.forEach(function(k) {
             var ref = db.collection('payrollHistory').doc();
             batch.set(ref, {
-                bulan: bulanBayar, // bulan SAAT DIBAYAR (cash-basis) — dipakai laporanKeuangan.js & akuntansi.js
-                periodeMulai: self.periodeMulai,
-                periodeSampai: self.periodeSampai,
-                karyawanId: k.karyawanId,
-                namaKaryawan: k.nama,
-                departemen: k.departemen,
-                hariKerja: k.hariKerja,
-                gajiPokok: k.gajiPokok,
-                jasaMedis: k.jasaMedis,
-                jasaDokter: k.jasaDokter,
-                bagPoolKlinik: k.bagPoolKlinik,
-                bagPoolApotek: k.bagPoolApotek,
-                bagTuslah: k.bagTuslah,
-                bagOmzet: k.bagOmzet,
-                bagUM: k.bagUM,
-                bagTransport: k.bagTransport,
-                bagRacik: k.bagRacik,
-                thrBulanIni: k.thrBulanIni || 0, // FITUR BARU: catat akumulasi THR periode ini untuk audit
-                tunjanganLain: k.tunjanganLain,
-                potKasbon: k.potKasbon,
-                potWisata: k.potWisata,
-                totalGaji: k.totalGaji,
-                status: 'paid',
+                bulan: bulanBayar,
+                periodeMulai: k.periodeMulai, periodeSampai: k.periodeSampai,
+                karyawanId: k.karyawanId, namaKaryawan: k.nama, departemen: k.departemen,
+                hariKerja: k.hariKerja, gajiPokok: k.gajiPokok,
+                jasaMedis: k.jasaMedis, jasaDokter: k.jasaDokter,
+                bagPoolKlinik: k.bagPoolKlinik, bagPoolApotek: k.bagPoolApotek, bagTuslah: k.bagTuslah,
+                bagOmzet: k.bagOmzet, bagUM: k.bagUM, bagTransport: k.bagTransport, bagRacik: k.bagRacik,
+                thrBulanIni: k.thrBulanIni || 0,
+                tunjanganLain: k.tunjanganLain, potKasbon: k.potKasbon, potWisata: k.potWisata,
+                totalGaji: k.totalGaji, status: 'paid',
                 diprosesOleh: window.currentUserName || 'Keuangan',
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
 
-            // FITUR BARU: akumulasikan tabungan THR karyawan (jika ada porsi THR periode ini)
             if (k.thrBulanIni > 0) {
                 var thrRef = db.collection('thrTabungan').doc(k.karyawanId);
                 batch.set(thrRef, {
-                    karyawanId: k.karyawanId,
-                    namaKaryawan: k.nama,
+                    karyawanId: k.karyawanId, namaKaryawan: k.nama,
                     saldo: firebase.firestore.FieldValue.increment(k.thrBulanIni),
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 }, { merge: true });
             }
+
+            // FITUR BARU: reset periode PER KARYAWAN, bukan 1 dokumen 'global' lagi.
+            var periodeRef = db.collection('payrollPeriode').doc(k.karyawanId);
+            batch.set(periodeRef, {
+                mulai: besokStr,
+                terakhirDibayar: firebase.firestore.FieldValue.serverTimestamp(),
+                terakhirDibayarOleh: window.currentUserName || 'Keuangan',
+                terakhirJumlah: k.totalGaji,
+                terakhirPeriodeMulai: k.periodeMulai,
+                terakhirPeriodeSampai: k.periodeSampai
+            }, { merge: true });
         });
 
-        // Reset periode berjalan: mulai lagi dari besok supaya transaksi hari ini (yang
-        // sudah ikut dibayar barusan) tidak ikut terhitung dobel di periode berikutnya.
-        var periodeRef = db.collection('payrollPeriode').doc('global');
-        batch.set(periodeRef, {
-            mulai: besokStr,
-            terakhirDibayar: firebase.firestore.FieldValue.serverTimestamp(),
-            terakhirDibayarOleh: window.currentUserName || 'Keuangan',
-            terakhirJumlah: totalPayroll,
-            terakhirPeriodeMulai: self.periodeMulai,
-            terakhirPeriodeSampai: self.periodeSampai
-        }, { merge: true });
-
         batch.commit().then(function() {
-            Utils.toast('Payroll berhasil dibayarkan! Total ' + Utils.formatRupiah(totalPayroll) + ' tercatat sebagai beban gaji karyawan & akumulasi direset.', 'success');
+            Utils.toast('Payroll semua karyawan berhasil dibayarkan! Total ' + Utils.formatRupiah(totalPayroll) + ' tercatat sebagai beban gaji karyawan.', 'success');
             AuditLog.catat({
                 aksi: 'bayar', modul: 'Payroll', koleksi: 'payrollHistory', targetId: bulanBayar,
-                deskripsi: 'Bayarkan payroll periode ' + self.periodeMulai + ' s/d ' + self.periodeSampai + ' untuk ' + self.kalkulasiGaji.length + ' karyawan',
+                deskripsi: 'Bayarkan payroll (semua) untuk ' + self.kalkulasiGaji.length + ' karyawan',
                 nominal: totalPayroll
             });
             self._isPaying = false;
@@ -639,14 +728,14 @@ window.AppKeuanganPayroll = {
         });
     },
 
-    // FITUR BARU: Tombol "Bayarkan & Reset" — mencairkan tabungan THR karyawan ke 0
+    // Tombol "Bayarkan & Reset" THR — mencairkan tabungan THR karyawan ke 0
     // dan mencatat riwayat pembayarannya untuk jejak audit.
     bayarTHR: function(idx) {
         var self = this;
         var k = this.kalkulasiGaji[idx];
         if (!k || k.thrSaldoProyeksi <= 0) return;
 
-        var bulan = (this.periodeSampai || new Date().toISOString().split('T')[0]).slice(0, 7);
+        var bulan = (this.periodeSampaiGlobal || new Date().toISOString().split('T')[0]).slice(0, 7);
         if (!confirm('Bayarkan THR ' + k.nama + ' sebesar ' + Utils.formatRupiah(k.thrSaldoProyeksi) + ' dan reset tabungan menjadi Rp 0?')) return;
 
         Utils.toast('Memproses pembayaran THR...', 'info');

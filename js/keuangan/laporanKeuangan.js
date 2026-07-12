@@ -9,6 +9,7 @@ window.AppKeuanganLaporanKeuangan = {
     dataPembelian: [],
     dataPayroll: [],       // FITUR BARU
     dataTransaksiPrev: [], // FITUR BARU
+    dataPemasukanLain: [], // FITUR BARU: pemasukan non-penjualan (kasMasuk), mis. selisih retur tukar barang
     summary: null,         // FITUR BARU: dipakai oleh exportExcel()
 
     render: function() {
@@ -50,13 +51,16 @@ window.AppKeuanganLaporanKeuangan = {
         // Query semua data di bulan tersebut
         var pTrx = db.collection('transaksi').where('tanggal', '>=', startDate).where('tanggal', '<=', endDate).get();
         var pKeluar = db.collection('kasKeluar').where('status', '==', 'approved').where('tanggal', '>=', startDate).where('tanggal', '<=', endDate).get();
+        // FITUR BARU: pemasukan non-penjualan (mis. selisih retur tukar barang yang DITERIMA dari
+        // supplier) sekarang juga otomatis masuk laporan, bukan cuma tersimpan di database saja.
+        var pMasuk = db.collection('kasMasuk').where('status', '==', 'approved').where('tanggal', '>=', startDate).where('tanggal', '<=', endDate).get();
         var pBeli = db.collection('pembelian').where('tanggal', '>=', startDate).where('tanggal', '<=', endDate).get();
         // FIX/FITUR BARU: sertakan beban payroll (sebelumnya tidak ikut dihitung sama sekali di laporan ini,
         // sehingga "Laba Bersih" terlihat lebih besar dari kondisi riil).
         var pPayroll = db.collection('payrollHistory').where('bulan', '==', bulan).get();
         var pTrxPrev = db.collection('transaksi').where('tanggal', '>=', prevBulan + '-01').where('tanggal', '<=', prevBulan + '-31').get();
 
-        Promise.all([pTrx, pKeluar, pBeli, pPayroll, pTrxPrev]).then(function(results) {
+        Promise.all([pTrx, pKeluar, pBeli, pPayroll, pTrxPrev, pMasuk]).then(function(results) {
             self.dataTransaksi = [];
             results[0].forEach(function(doc) { var d = doc.data(); d.id = doc.id; self.dataTransaksi.push(d); });
 
@@ -71,6 +75,10 @@ window.AppKeuanganLaporanKeuangan = {
 
             self.dataTransaksiPrev = [];
             results[4].forEach(function(doc) { self.dataTransaksiPrev.push(doc.data()); });
+
+            // FITUR BARU: pemasukan non-penjualan (kasMasuk approved), mis. selisih retur tukar barang.
+            self.dataPemasukanLain = [];
+            results[5].forEach(function(doc) { var d = doc.data(); d.id = doc.id; self.dataPemasukanLain.push(d); });
 
             self.renderReport();
         }).catch(function(err) {
@@ -127,8 +135,13 @@ window.AppKeuanganLaporanKeuangan = {
         });
         var totalBebanPayroll = totalGajiPokok + totalTunjanganJasa;
 
+        // FITUR BARU: Pemasukan Lain (Non-Penjualan) — mis. selisih retur tukar barang yang
+        // DITERIMA dari supplier, otomatis tercatat di koleksi kasMasuk saat retur dikonfirmasi.
+        var totalPemasukanLain = 0;
+        this.dataPemasukanLain.forEach(function(m) { totalPemasukanLain += m.jumlah || 0; });
+
         var totalKasKeluar = totalOperasional + totalBeliTunai + totalBebanPayroll;
-        var labaBersih = totalLabaKotor - totalOperasional - totalBebanPayroll;
+        var labaBersih = totalLabaKotor - totalOperasional - totalBebanPayroll + totalPemasukanLain;
 
         // FITUR BARU: perbandingan omzet dengan bulan sebelumnya (pertumbuhan)
         var omzetBulanLalu = 0;
@@ -149,6 +162,7 @@ window.AppKeuanganLaporanKeuangan = {
             cashMasuk: cashMasuk, transferMasuk: transferMasuk, qrisMasuk: qrisMasuk,
             totalOperasional: totalOperasional, totalBeliTunai: totalBeliTunai, totalBeliKredit: totalBeliKredit,
             totalGajiPokok: totalGajiPokok, totalTunjanganJasa: totalTunjanganJasa, totalBebanPayroll: totalBebanPayroll,
+            totalPemasukanLain: totalPemasukanLain,
             totalKasKeluar: totalKasKeluar, labaBersih: labaBersih,
             marginLabaKotor: marginLabaKotor, marginLabaBersih: marginLabaBersih, pertumbuhanOmzet: pertumbuhanOmzet
         };
@@ -178,6 +192,9 @@ window.AppKeuanganLaporanKeuangan = {
         html += '    <div class="flex justify-between border-t border-slate-100 pt-2"><span class="font-semibold text-slate-600 dark:text-slate-300">Laba Kotor</span><span class="font-bold text-primary-600">' + Utils.formatRupiah(totalLabaKotor) + '</span></div>';
         html += '    <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">- Gaji Pokok Karyawan</span><span class="text-red-500">' + Utils.formatRupiah(totalGajiPokok) + '</span></div>';
         html += '    <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">- Tunjangan & Jasa Pembagian Hasil</span><span class="text-red-500">' + Utils.formatRupiah(totalTunjanganJasa) + '</span></div>';
+        if (totalPemasukanLain > 0) {
+            html += '    <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">+ Pemasukan Lain (Retur Tukar Barang, dll)</span><span class="text-emerald-500">' + Utils.formatRupiah(totalPemasukanLain) + '</span></div>';
+        }
         html += '    <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">- Biaya Operasional Lain</span><span class="text-red-500">' + Utils.formatRupiah(totalOperasional) + '</span></div>';
         html += '    <div class="flex justify-between border-t-2 border-slate-200 pt-3 mt-2"><span class="font-bold text-gray-800 dark:text-white">LABA BERSIH</span><span class="font-bold text-lg ' + (labaBersih >= 0 ? 'text-emerald-600' : 'text-red-600') + '">' + Utils.formatRupiah(labaBersih) + '</span></div>';
         html += '  </div>';
@@ -190,7 +207,10 @@ window.AppKeuanganLaporanKeuangan = {
         html += '    <div class="flex justify-between"><span class="text-slate-500">Kas Masuk (Cash)</span><span class="font-semibold text-emerald-500">' + Utils.formatRupiah(cashMasuk) + '</span></div>';
         html += '    <div class="flex justify-between"><span class="text-slate-500">Kas Masuk (Transfer)</span><span class="font-semibold text-emerald-500">' + Utils.formatRupiah(transferMasuk) + '</span></div>';
         html += '    <div class="flex justify-between"><span class="text-slate-500">Kas Masuk (QRIS)</span><span class="font-semibold text-emerald-500">' + Utils.formatRupiah(qrisMasuk) + '</span></div>';
-        html += '    <div class="flex justify-between border-t border-slate-100 pt-2"><span class="font-semibold text-slate-600 dark:text-slate-300">Total Kas Masuk</span><span class="font-bold text-emerald-600">' + Utils.formatRupiah(cashMasuk + transferMasuk + qrisMasuk) + '</span></div>';
+        if (totalPemasukanLain > 0) {
+            html += '    <div class="flex justify-between"><span class="text-slate-500">Pemasukan Lain (Retur Tukar Barang, dll)</span><span class="font-semibold text-emerald-500">' + Utils.formatRupiah(totalPemasukanLain) + '</span></div>';
+        }
+        html += '    <div class="flex justify-between border-t border-slate-100 pt-2"><span class="font-semibold text-slate-600 dark:text-slate-300">Total Kas Masuk</span><span class="font-bold text-emerald-600">' + Utils.formatRupiah(cashMasuk + transferMasuk + qrisMasuk + totalPemasukanLain) + '</span></div>';
         html += '    <div class="flex justify-between mt-4"><span class="text-slate-500">Beli Obat Tunai</span><span class="text-red-500">' + Utils.formatRupiah(totalBeliTunai) + '</span></div>';
         html += '    <div class="flex justify-between"><span class="text-slate-500">Pengeluaran Operasional</span><span class="text-red-500">' + Utils.formatRupiah(totalOperasional) + '</span></div>';
         html += '    <div class="flex justify-between"><span class="text-slate-500">Pembayaran Payroll (Gaji+Tunjangan)</span><span class="text-red-500">' + Utils.formatRupiah(totalBebanPayroll) + '</span></div>';
@@ -256,13 +276,15 @@ window.AppKeuanganLaporanKeuangan = {
             ['Laba Kotor', s.totalLabaKotor],
             ['Gaji Pokok Karyawan', -s.totalGajiPokok],
             ['Tunjangan & Jasa Pembagian Hasil', -s.totalTunjanganJasa],
+            ['Pemasukan Lain (Retur Tukar Barang, dll)', s.totalPemasukanLain || 0],
             ['Biaya Operasional Lain', -s.totalOperasional],
             ['LABA BERSIH', s.labaBersih], [],
             ['ARUS KAS', ''],
             ['Kas Masuk (Cash)', s.cashMasuk],
             ['Kas Masuk (Transfer)', s.transferMasuk],
             ['Kas Masuk (QRIS)', s.qrisMasuk],
-            ['Total Kas Masuk', s.cashMasuk + s.transferMasuk + s.qrisMasuk],
+            ['Pemasukan Lain (Retur Tukar Barang, dll)', s.totalPemasukanLain || 0],
+            ['Total Kas Masuk', s.cashMasuk + s.transferMasuk + s.qrisMasuk + (s.totalPemasukanLain || 0)],
             ['Beli Obat Tunai', -s.totalBeliTunai],
             ['Pengeluaran Operasional', -s.totalOperasional],
             ['Pembayaran Payroll', -s.totalBebanPayroll],
@@ -286,6 +308,14 @@ window.AppKeuanganLaporanKeuangan = {
             keluarRows.push([p.tanggal || '-', p.keterangan || '-', p.kategori || '-', p.jumlah || 0]);
         });
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(keluarRows), 'Rincian Pengeluaran');
+
+        if (this.dataPemasukanLain && this.dataPemasukanLain.length > 0) {
+            var masukRows = [['Tanggal', 'Keterangan', 'Kategori', 'Jumlah']];
+            this.dataPemasukanLain.forEach(function(m) {
+                masukRows.push([m.tanggal || '-', m.keterangan || '-', m.kategori || '-', m.jumlah || 0]);
+            });
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(masukRows), 'Rincian Pemasukan Lain');
+        }
 
         XLSX.writeFile(wb, 'Laporan_Keuangan_' + bulan + '.xlsx');
         Utils.toast('Laporan berhasil diexport ke Excel!', 'success');
