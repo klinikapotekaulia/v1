@@ -74,10 +74,10 @@ window.AppChat = {
             '      </div>',
             '      ',
             '      <div class="flex-1 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-primary-500/20 focus-within:border-primary-500 transition-all px-3 py-2 flex flex-col gap-1 min-h-[46px]">',
-            '        <textarea id="chat-input" rows="1" placeholder="Tulis pesan atau pertanyaan di sini... (Shift + Enter untuk baris baru)" class="w-full bg-transparent border-0 outline-none resize-none text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 max-h-32" style="height: 24px;"></textarea>',
+            '        <textarea id="chat-input" rows="3" placeholder="Tulis pesan atau pertanyaan di sini... (Enter untuk baris baru)" class="w-full bg-transparent border-0 outline-none resize-none text-sm sm:text-base leading-relaxed text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 max-h-64" style="height: 72px;"></textarea>',
             '        <div class="flex items-center justify-between text-[10px] text-slate-400 select-none">',
             '          <div class="flex items-center gap-1.5">',
-            '            <span>Tekan <kbd class="px-1 py-0.5 bg-slate-200/50 dark:bg-slate-800 rounded font-mono">Enter</kbd> untuk kirim</span>',
+            '            <span>Tekan <kbd class="px-1 py-0.5 bg-slate-200/50 dark:bg-slate-800 rounded font-mono">Ctrl</kbd> + <kbd class="px-1 py-0.5 bg-slate-200/50 dark:bg-slate-800 rounded font-mono">Enter</kbd> untuk kirim</span>',
             '            <span class="text-slate-300 dark:text-slate-600">|</span>',
             '            <button type="button" id="emoji-trigger-btn" onclick="AppChat.toggleEmojiPicker(event)" class="text-slate-500 hover:text-primary-500 flex items-center gap-1 font-semibold text-xs transition active:scale-95">',
             '              <i data-lucide="smile" class="w-4 h-4"></i>',
@@ -110,15 +110,18 @@ window.AppChat = {
             input.addEventListener('input', function() {
                 // Auto-expand textarea height
                 this.style.height = 'auto';
-                this.style.height = (this.scrollHeight - 4) + 'px';
-                if (parseInt(this.style.height) > 128) {
-                    this.style.height = '128px';
+                var newHeight = Math.max(this.scrollHeight, 72);
+                this.style.height = newHeight + 'px';
+                if (parseInt(this.style.height) > 256) {
+                    this.style.height = '256px';
                 }
                 self.updateCharCount();
             });
 
             input.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                // Enter now only creates a new line (default textarea behavior).
+                // Sending is triggered with Ctrl+Enter (or Cmd+Enter on Mac).
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                     e.preventDefault();
                     self.sendMessage();
                 }
@@ -282,7 +285,7 @@ window.AppChat = {
                 btn.innerHTML = '<i data-lucide="send" class="w-5 h-5"></i>';
                 if (window.lucide) lucide.createIcons({ el: btn });
             }
-            input.style.height = '24px';
+            input.style.height = '72px';
             input.focus();
             self.updateCharCount();
             self.scrollToBottom(true);
@@ -456,9 +459,10 @@ window.AppChat = {
         
         // Trigger auto-resize input height
         input.style.height = 'auto';
-        input.style.height = (input.scrollHeight - 4) + 'px';
-        if (parseInt(input.style.height) > 128) {
-            input.style.height = '128px';
+        var newH = Math.max(input.scrollHeight, 72);
+        input.style.height = newH + 'px';
+        if (parseInt(input.style.height) > 256) {
+            input.style.height = '256px';
         }
         
         this.updateCharCount();
