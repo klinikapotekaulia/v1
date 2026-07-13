@@ -257,6 +257,17 @@ service cloud.firestore {
     }
 
     // ------------------------------------------------------------
+    // STATUS BACA CHAT — dipakai untuk badge titik merah notifikasi
+    // pesan diskusi baru di sidebar (lihat startChatNotifWatcher() di
+    // js/app.js). Doc ID = uid akun ybs; setiap akun hanya boleh
+    // baca/tulis dokumen MILIKNYA SENDIRI, tidak bisa lihat/ubah
+    // status baca akun lain.
+    // ------------------------------------------------------------
+    match /chatReadStatus/{uid} {
+      allow read, write: if isActive() && request.auth.uid == uid;
+    }
+
+    // ------------------------------------------------------------
     // AUDIT TRAIL — jejak aktivitas untuk transaksi keuangan penting
     // (js/utils/auditLog.js). Dibuat oleh siapa saja yang aktif &
     // login (create-only, mencatat aksinya sendiri), TIDAK BOLEH
