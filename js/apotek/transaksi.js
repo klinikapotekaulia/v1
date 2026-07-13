@@ -32,7 +32,7 @@ window.AppApotekTransaksi = {
     // ========== INIT ==========
     init: function() {
         var self = this;
-        var today = new Date().toISOString().split('T')[0];
+        var today = Utils.today(); // FIX: pakai tanggal lokal, bukan UTC
 
         Promise.all([
             DataCache.getObat(),
@@ -570,7 +570,7 @@ window.AppApotekTransaksi = {
 
         var obj = {
             tipe: this.tipe,
-            tanggal: new Date().toISOString().split('T')[0],
+            tanggal: Utils.today(), // FIX KRITIS: sebelumnya pakai UTC, transaksi dini hari (00:00-07:00 WIB) tersimpan dengan tanggal KEMARIN sehingga tidak muncul di laporan/dashboard "hari ini"
             namaPasien: document.getElementById('trx-pasien').value.trim(),
             dokterId: dokterIdFinal,
             dokterLuar: dokterLuarFinal,

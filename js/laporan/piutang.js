@@ -116,7 +116,7 @@ window.AppLaporanPiutang = {
         var namaKary = select.options[select.selectedIndex].getAttribute('data-nama');
 
         var obj = {
-            tanggal: new Date().toISOString().split('T')[0],
+            tanggal: Utils.today(), // FIX: pakai tanggal lokal, bukan UTC
             karyawanId: karyId,
             namaKaryawan: namaKary,
             jumlah: parseFloat(document.getElementById('pi-jumlah').value) || 0,
@@ -144,7 +144,7 @@ window.AppLaporanPiutang = {
         var item = this.data ? this.data.find(p => p.id === id) : null;
         db.collection('piutangKaryawan').doc(id).update({
             status: 'lunas',
-            tanggalLunas: new Date().toISOString().split('T')[0],
+            tanggalLunas: Utils.today(), // FIX: pakai tanggal lokal, bukan UTC
             lunasiOleh: window.currentUserName || 'Keuangan'
         }).then(() => {
             Utils.toast('Piutang dilunasi!', 'success');

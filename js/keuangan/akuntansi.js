@@ -285,7 +285,7 @@ window.AppKeuanganAkuntansi = {
         }
         var html = '<div class="p-6"><div class="flex items-center justify-between mb-5"><h3 class="text-lg font-semibold">Input Jurnal Manual</h3><button onclick="Utils.closeModal()" class="text-slate-400"><i data-lucide="x" class="w-5 h-5"></i></button></div>';
         html += '<form id="form-jurnal" class="space-y-4">';
-        html += '<div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium mb-1">Tanggal *</label><input type="date" id="jr-tanggal" required class="w-full px-3 py-2 border dark:bg-slate-700 dark:text-white rounded-lg text-sm" value="' + new Date().toISOString().split('T')[0] + '"></div>';
+        html += '<div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium mb-1">Tanggal *</label><input type="date" id="jr-tanggal" required class="w-full px-3 py-2 border dark:bg-slate-700 dark:text-white rounded-lg text-sm" value="' + Utils.today() + '"></div>'; // FIX: pakai tanggal lokal, bukan UTC
         html += '<div><label class="block text-sm font-medium mb-1">Keterangan *</label><input type="text" id="jr-ket" required class="w-full px-3 py-2 border dark:bg-slate-700 dark:text-white rounded-lg text-sm"></div></div>';
         html += '<div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium mb-1">Akun Debit *</label><select id="jr-debit" class="w-full px-3 py-2 border dark:bg-slate-700 dark:text-white rounded-lg text-sm">' + optHtml + '</select></div>';
         html += '<div><label class="block text-sm font-medium mb-1">Akun Kredit *</label><select id="jr-kredit" class="w-full px-3 py-2 border dark:bg-slate-700 dark:text-white rounded-lg text-sm">' + optHtml + '</select></div></div>';

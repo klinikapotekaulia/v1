@@ -58,7 +58,7 @@ window.AppKeuanganPayroll = {
         // FITUR BARU: ambil periode SEMUA karyawan (bukan 1 doc 'global') dulu, supaya kita tahu
         // dari tanggal berapa paling awal kita perlu ambil data transaksi/absensi.
         db.collection('payrollPeriode').get().then(function(periodeSnap) {
-            var today = new Date().toISOString().split('T')[0];
+            var today = Utils.today(); // FIX: pakai tanggal lokal, bukan UTC
             var defaultAwal = today.slice(0, 7) + '-01'; // fallback: awal bulan berjalan (karyawan yang belum pernah dibayar)
             self.defaultAwalBulan = defaultAwal;
             self.periodeSampaiGlobal = today;
@@ -598,7 +598,10 @@ window.AppKeuanganPayroll = {
         var bulanBayar = todayStr.slice(0, 7);
         var besok = new Date(todayStr + 'T00:00:00');
         besok.setDate(besok.getDate() + 1);
-        var besokStr = besok.toISOString().split('T')[0];
+        // FIX: sebelumnya toISOString() (UTC) membuat besokStr malah SAMA dengan
+        // todayStr (mundur 1 hari) karena tengah malam WIB = jam 17:00 UTC hari
+        // sebelumnya. Utils.dateStr() ambil dari komponen tanggal lokal Date object.
+        var besokStr = Utils.dateStr(besok);
 
         var batch = db.batch();
 
@@ -672,7 +675,10 @@ window.AppKeuanganPayroll = {
         var bulanBayar = todayStr.slice(0, 7);
         var besok = new Date(todayStr + 'T00:00:00');
         besok.setDate(besok.getDate() + 1);
-        var besokStr = besok.toISOString().split('T')[0];
+        // FIX: sebelumnya toISOString() (UTC) membuat besokStr malah SAMA dengan
+        // todayStr (mundur 1 hari) karena tengah malam WIB = jam 17:00 UTC hari
+        // sebelumnya. Utils.dateStr() ambil dari komponen tanggal lokal Date object.
+        var besokStr = Utils.dateStr(besok);
 
         var batch = db.batch();
         this.kalkulasiGaji.forEach(function(k) {
@@ -735,7 +741,7 @@ window.AppKeuanganPayroll = {
         var k = this.kalkulasiGaji[idx];
         if (!k || k.thrSaldoProyeksi <= 0) return;
 
-        var bulan = (this.periodeSampaiGlobal || new Date().toISOString().split('T')[0]).slice(0, 7);
+        var bulan = (this.periodeSampaiGlobal || Utils.today()).slice(0, 7); // FIX: pakai tanggal lokal, bukan UTC
         if (!confirm('Bayarkan THR ' + k.nama + ' sebesar ' + Utils.formatRupiah(k.thrSaldoProyeksi) + ' dan reset tabungan menjadi Rp 0?')) return;
 
         Utils.toast('Memproses pembayaran THR...', 'info');

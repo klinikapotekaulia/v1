@@ -25,7 +25,7 @@ window.AppApotekPembelian = {
     },
 
     renderForm: function() {
-        var today = new Date().toISOString().split('T')[0];
+        var today = Utils.today(); // FIX: pakai tanggal lokal, bukan UTC
         var html = '';
 
         // INFO HEADER

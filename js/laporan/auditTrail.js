@@ -628,7 +628,7 @@ window.AppLaporanAuditTrail = {
             ws['!cols'] = wscols;
 
             XLSX.utils.book_append_sheet(wb, ws, 'Log Aktivitas');
-            XLSX.writeFile(wb, 'Audit_Trail_' + new Date().toISOString().split('T')[0] + '.xlsx');
+            XLSX.writeFile(wb, 'Audit_Trail_' + Utils.today() + '.xlsx');
             Utils.toast('Excel berhasil diekspor!', 'success');
         } catch (e) {
             console.error('Gagal export Excel:', e);
@@ -730,7 +730,7 @@ window.AppLaporanAuditTrail = {
                 }
             });
 
-            doc.save('Audit_Trail_' + new Date().toISOString().split('T')[0] + '.pdf');
+            doc.save('Audit_Trail_' + Utils.today() + '.pdf');
             Utils.toast('PDF berhasil diunduh!', 'success');
         } catch (e) {
             console.error('Gagal export PDF:', e);

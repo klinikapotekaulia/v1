@@ -73,12 +73,21 @@ window.Utils = {
     // difilter/berdasarkan "hari ini" (dashboard, penjualan harian, rangkuman
     // aktivitas, dst) telat update setiap paginya sampai jam 7. Sekarang ambil
     // dari getFullYear/getMonth/getDate (mengikuti jam lokal perangkat/browser).
-    today: function () {
-        var d = new Date();
+    //
+    // dateStr() adalah versi UMUM: berlaku untuk Date object APA SAJA (bukan
+    // cuma "sekarang"), dipakai di banyak modul lain (transaksi, retur, hutang,
+    // piutang, payroll, dst) yang sebelumnya masing-masing salah pakai
+    // toISOString() sendiri untuk memformat tanggal transaksi/jatuh tempo/dsb.
+    dateStr: function (d) {
+        d = (d instanceof Date) ? d : new Date(d);
         var y = d.getFullYear();
         var m = String(d.getMonth() + 1).padStart(2, '0');
         var day = String(d.getDate()).padStart(2, '0');
         return y + '-' + m + '-' + day;
+    },
+
+    today: function () {
+        return this.dateStr(new Date());
     },
 
     // Snackbar non-blocking (tidak pakai alert)
@@ -418,7 +427,7 @@ function buildSidebarHtml(role) {
             // FITUR BARU: titik merah berkedip khusus menu Chat, menandakan ada
             // pesan diskusi baru yang belum dibuka akun ini. Lihat startChatNotifWatcher().
             var unreadBadge = (menu.id === 'chat')
-                ? '<span class="chat-unread-badge hidden ml-auto w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse flex-shrink-0"></span>'
+                ? '<span class="chat-unread-badge hidden ml-auto w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0"></span>'
                 : '';
 
             items += '<li>' +
@@ -563,26 +572,62 @@ var _chatLastReadMillis  = null;
 var _chatFirstSnapshot   = true;
 window._chatPageActive   = false; // di-toggle oleh js/chat.js saat halaman Chat dibuka/ditutup
 
+// FIX: sebelumnya kode ini bikin `new AudioContext()` BARU setiap kali ada
+// notifikasi. Browser modern (Chrome/Safari) memblokir AudioContext yang
+// dibuat/dipakai tanpa "izin" dari interaksi user terbaru (autoplay policy) —
+// context baru sering start dalam status "suspended" (bisu total, tanpa
+// error). Sekarang pakai SATU context yang dibuat sekali & di-resume tiap
+// mau bunyi, dan di-"unlock" lebih awal lewat interaksi pertama user
+// (klik/ketik apa saja di halaman) supaya saat notifikasi pertama datang,
+// context sudah siap jalan.
+var _chatAudioCtx = null;
+function getChatAudioCtx() {
+    if (!_chatAudioCtx) {
+        var Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return null;
+        try { _chatAudioCtx = new Ctx(); } catch (e) { return null; }
+    }
+    return _chatAudioCtx;
+}
+// Unlock sedini mungkin: begitu user klik/sentuh/ketik apa saja di halaman
+// (termasuk saat login), context langsung dibuat & di-resume.
+['click', 'keydown', 'touchstart'].forEach(function (evt) {
+    document.addEventListener(evt, function unlockChatAudio() {
+        var ctx = getChatAudioCtx();
+        if (ctx && ctx.state === 'suspended') ctx.resume().catch(function () {});
+    }, { once: true, passive: true });
+});
+
 function playChatNotifSound() {
     try {
-        var Ctx = window.AudioContext || window.webkitAudioContext;
-        if (!Ctx) return;
-        var ctx = new Ctx();
-        var now = ctx.currentTime;
-        // Nada dua-ketuk pendek ("ting-ting") khas notifikasi chat
-        [{ t: 0, f: 880 }, { t: 0.12, f: 1175 }].forEach(function (n) {
-            var osc  = ctx.createOscillator();
-            var gain = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.value = n.f;
-            gain.gain.setValueAtTime(0.0001, now + n.t);
-            gain.gain.exponentialRampToValueAtTime(0.18, now + n.t + 0.015);
-            gain.gain.exponentialRampToValueAtTime(0.0001, now + n.t + 0.25);
-            osc.connect(gain).connect(ctx.destination);
-            osc.start(now + n.t);
-            osc.stop(now + n.t + 0.3);
-        });
-        setTimeout(function () { ctx.close(); }, 700);
+        var ctx = getChatAudioCtx();
+        if (!ctx) return;
+        var afterResume = function () {
+            var now = ctx.currentTime;
+            // Nada dua-ketuk pendek ("ting-ting") khas notifikasi chat
+            [{ t: 0, f: 880 }, { t: 0.12, f: 1175 }].forEach(function (n) {
+                var osc  = ctx.createOscillator();
+                var gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = n.f;
+                gain.gain.setValueAtTime(0.0001, now + n.t);
+                gain.gain.exponentialRampToValueAtTime(0.18, now + n.t + 0.015);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + n.t + 0.25);
+                osc.connect(gain).connect(ctx.destination);
+                osc.start(now + n.t);
+                osc.stop(now + n.t + 0.3);
+            });
+        };
+        if (ctx.state === 'suspended') {
+            // Masih terkunci (belum ada interaksi user sama sekali sejak halaman
+            // dibuka) -> coba resume dulu; kalau gagal, browser memang belum
+            // mengizinkan audio sampai user berinteraksi (badge merah tetap muncul).
+            ctx.resume().then(afterResume).catch(function (e) {
+                console.warn('Audio notifikasi masih terkunci browser (belum ada interaksi user):', e);
+            });
+        } else {
+            afterResume();
+        }
     } catch (e) {
         console.warn('Tidak dapat memutar suara notifikasi chat:', e);
     }

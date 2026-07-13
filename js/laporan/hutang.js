@@ -145,7 +145,7 @@ window.AppLaporanHutang = {
         // 2. Catat ke buku kas pengeluaran (biar masuk laporan keuangan nanti)
         var kasRef = db.collection('kasKeluar').doc();
         batch.set(kasRef, {
-            tanggal: new Date().toISOString().split('T')[0],
+            tanggal: Utils.today(), // FIX: pakai tanggal lokal, bukan UTC
             keterangan: 'Pelunasan Faktur: ' + id.substring(0,8).toUpperCase(),
             kategori: 'Hutang Usaha',
             jumlah: 0, // diupdate setelah baca faktur

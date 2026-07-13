@@ -103,7 +103,7 @@ window.AppLaporanPengeluaran = {
 
     simpan: function() {
         var obj = {
-            tanggal: new Date().toISOString().split('T')[0],
+            tanggal: Utils.today(), // FIX: pakai tanggal lokal, bukan UTC
             kategori: document.getElementById('pe-kategori').value,
             keterangan: document.getElementById('pe-ket').value.trim(),
             jumlah: parseFloat(document.getElementById('pe-jumlah').value) || 0,

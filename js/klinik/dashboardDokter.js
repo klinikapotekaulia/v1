@@ -26,7 +26,7 @@ window.AppKlinikDashboardDokter = {
 
     // ===== RENDER =====
     render: function() {
-        var today = new Date().toISOString().split('T')[0];
+        var today = Utils.today(); // FIX: pakai tanggal lokal, bukan UTC
         return [
             '<div class="page-enter max-w-5xl">',
             '  <h2 class="text-xl font-bold text-gray-800 dark:text-white mb-1">Dashboard Dokter</h2>',

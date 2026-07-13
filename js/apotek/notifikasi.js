@@ -179,8 +179,8 @@ window.AppApotekNotifikasi = {
         var now = new Date();
         var batas = new Date();
         batas.setDate(batas.getDate() + hariTarget);
-        var batasStr = batas.toISOString().split('T')[0];
-        var nowStr   = now.toISOString().split('T')[0];
+        var batasStr = Utils.dateStr(batas); // FIX: pakai tanggal lokal, bukan UTC
+        var nowStr   = Utils.dateStr(now); // FIX: pakai tanggal lokal, bukan UTC
 
         // Filter obat yang punya tanggalKadaluarsa dan <= batas, stok > 0
         var list = this.allObat.filter(function(o) {
@@ -278,8 +278,8 @@ window.AppApotekNotifikasi = {
 
         // Kadaluarsa 60 hari
         var batas60 = new Date(); batas60.setDate(batas60.getDate() + 60);
-        var batas60Str = batas60.toISOString().split('T')[0];
-        var nowStr = now.toISOString().split('T')[0];
+        var batas60Str = Utils.dateStr(batas60); // FIX: pakai tanggal lokal, bukan UTC
+        var nowStr = Utils.dateStr(now); // FIX: pakai tanggal lokal, bukan UTC
         var expList = this.allObat.filter(function(o) { return o.tanggalKadaluarsa && o.tanggalKadaluarsa <= batas60Str && (o.stok || 0) > 0; });
         lines.push('--- KADALUARSA DALAM 60 HARI (' + expList.length + ' item) ---');
         if (expList.length === 0) {
@@ -295,7 +295,7 @@ window.AppApotekNotifikasi = {
         var url  = URL.createObjectURL(blob);
         var a    = document.createElement('a');
         a.href   = url;
-        a.download = 'alert-stok-' + now.toISOString().split('T')[0] + '.txt';
+        a.download = 'alert-stok-' + Utils.dateStr(now) + '.txt'; // FIX: pakai tanggal lokal, bukan UTC
         a.click();
         URL.revokeObjectURL(url);
         Utils.toast('Laporan berhasil diunduh!', 'success');
@@ -306,7 +306,7 @@ window.AppApotekNotifikasi = {
     loadBadge: function(callback) {
         DataCache.getObat().then(function(snap) {
             var now = new Date();
-            var batas30Str = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            var batas30Str = Utils.dateStr(new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)); // FIX: pakai tanggal lokal, bukan UTC
             var count = 0;
             snap.forEach(function(doc) {
                 var d = doc.data();

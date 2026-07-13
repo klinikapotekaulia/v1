@@ -147,8 +147,7 @@ window.AppApotekStockOpname = {
 
         Utils.toast('Mengirim pengajuan...', 'info');
         db.collection('stockOpnameRequests').add({
-            tanggal: new Date().toISOString().split('T')[0],
-            diajukanOleh: window.currentUserName || 'Apoteker',
+            tanggal: Utils.today(), // FIX: pakai tanggal lokal, bukan UTC
             status: 'pending',
             totalItem: itemsToSubmit.length,
             items: itemsToSubmit,
@@ -267,7 +266,7 @@ window.AppApotekStockOpname = {
         // 3. Catat ke history
         var histRef = db.collection('stockOpnameHistory').doc();
         batch.set(histRef, {
-            tanggal: req.tanggal || (req.createdAt && req.createdAt.seconds ? new Date(req.createdAt.seconds*1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+            tanggal: req.tanggal || (req.createdAt && req.createdAt.seconds ? Utils.dateStr(new Date(req.createdAt.seconds*1000)) : Utils.today()), // FIX: pakai tanggal lokal, bukan UTC
             totalItem: req.totalItem,
             items: req.items,
             approvedBy: window.currentUserName || 'Admin',

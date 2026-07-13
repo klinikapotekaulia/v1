@@ -76,7 +76,7 @@ window.AppKlinikRekamMedis = {
 
     renderForm: function(prefill) {
         var p = prefill || {};
-        var today = new Date().toISOString().split('T')[0];
+        var today = Utils.today(); // FIX: default tanggal RM pakai waktu lokal, bukan UTC
 
         var html = '<form id="form-rm" class="space-y-4">';
         

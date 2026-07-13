@@ -282,7 +282,7 @@ window.AppApotekRetur = {
             obatOptions += '<option value="' + o.id + '" data-hpp="' + (o.hpp || 0) + '" data-stok="' + (o.stok || 0) + '" data-satuan="' + Utils.escapeHtml(o.satuan || '') + '">' + Utils.escapeHtml(o.namaObat) + ' (Stok: ' + (o.stok || 0) + ')</option>';
         });
 
-        var today = new Date().toISOString().split('T')[0];
+        var today = Utils.today(); // FIX: pakai tanggal lokal, bukan UTC
 
         // FIX: Utils.openModal hanya menerima 1 parameter (htmlContent), bukan (judul, html, callback).
         // Pemanggilan 3-parameter sebelumnya membuat parameter "judul" ('Buat Retur Baru') dianggap
@@ -912,7 +912,7 @@ window.AppApotekRetur = {
                         // Selisih positif → apotek bayar tambahan ke supplier, diajukan sbg kas keluar
                         // & mengikuti alur approval yg sama seperti laporan/pengeluaran.js.
                         tx.set(kasKeluarRef, {
-                            tanggal: new Date().toISOString().split('T')[0],
+                            tanggal: Utils.today(), // FIX: pakai tanggal lokal, bukan UTC
                             kategori: 'Retur Tukar Barang',
                             keterangan: 'Selisih bayar retur tukar barang ke ' + retur.supplier,
                             jumlah: selisih,
@@ -931,10 +931,11 @@ window.AppApotekRetur = {
                         jatuhTempo.setDate(jatuhTempo.getDate() + 30);
                         tx.set(hutangBaruRef, {
                             noFaktur: 'RETUR-' + id.substring(0, 6).toUpperCase(),
-                            tanggal: new Date().toISOString().split('T')[0],
+                            tanggal: Utils.today(), // FIX: pakai tanggal lokal, bukan UTC
                             supplier: retur.supplier,
                             metodePembayaran: 'kredit',
-                            jatuhTempo: jatuhTempo.toISOString().split('T')[0],
+                            jatuhTempo: Utils.dateStr(jatuhTempo), // FIX: pakai tanggal lokal, bukan UTC
+
                             statusPelunasan: 'belum_lunas',
                             items: retur.barangMasuk.map(function(i) {
                                 return { obatId: i.obatId, namaObat: i.namaObat, kodeObat: i.kodeObat, qty: i.qty, hargaBeli: i.harga };
@@ -963,7 +964,7 @@ window.AppApotekRetur = {
                                 sumber: 'retur_tukar_barang',
                                 returId: id,
                                 selisih: selisih,
-                                tanggal: new Date().toISOString().split('T')[0]
+                                tanggal: Utils.today() // FIX: pakai tanggal lokal, bukan UTC
                             })
                         });
                         returUpdate.statusSelisih = 'selesai';
