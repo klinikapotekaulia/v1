@@ -38,10 +38,16 @@ window.AppChat = {
     },
 
     init: function() {
+        // FITUR BARU: tandai halaman Chat sedang aktif & langsung hapus badge
+        // titik merah + simpan status "sudah dibaca" (lihat startChatNotifWatcher di app.js).
+        window._chatPageActive = true;
+        if (typeof window.markChatAsRead === 'function') window.markChatAsRead();
         this.setupRealtimeChat();
     },
 
     destroy: function() {
+        // FITUR BARU: halaman Chat ditutup, notifikasi pesan baru aktif kembali.
+        window._chatPageActive = false;
         if (this.messagesListener) {
             this.messagesListener();
             this.messagesListener = null;
