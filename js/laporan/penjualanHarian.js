@@ -30,7 +30,7 @@ window.AppLaporanPenjualanHarian = {
 
     // ===== RENDER =====
     render: function() {
-        var today = new Date().toISOString().split('T')[0];
+        var today = Utils.today(); // FIX: pakai tanggal lokal, bukan UTC
         return [
             '<div class="page-enter max-w-6xl">',
             '  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">',
