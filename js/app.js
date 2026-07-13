@@ -67,8 +67,18 @@ window.Utils = {
         return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
     },
 
+    // FIX: sebelumnya pakai new Date().toISOString().split('T')[0], yang selalu
+    // memakai zona UTC. Untuk WIB (UTC+7), itu membuat "hari ini" baru dianggap
+    // berganti jam 07:00 pagi waktu lokal (bukan jam 00:00), sehingga data yang
+    // difilter/berdasarkan "hari ini" (dashboard, penjualan harian, rangkuman
+    // aktivitas, dst) telat update setiap paginya sampai jam 7. Sekarang ambil
+    // dari getFullYear/getMonth/getDate (mengikuti jam lokal perangkat/browser).
     today: function () {
-        return new Date().toISOString().split('T')[0];
+        var d = new Date();
+        var y = d.getFullYear();
+        var m = String(d.getMonth() + 1).padStart(2, '0');
+        var day = String(d.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + day;
     },
 
     // Snackbar non-blocking (tidak pakai alert)
