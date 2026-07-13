@@ -3,7 +3,7 @@
  * Strategi: Cache shell statis, skip Firebase/CDN dynamic calls.
  */
 
-var CACHE_NAME = 'aulia-v7'; // FIX: dinaikkan karena app.js berubah (fitur notifikasi chat: badge merah + suara)
+var CACHE_NAME = 'aulia-v8'; // FIX: dinaikkan karena app.js berubah (fitur notifikasi chat: badge merah + suara)
 
 var SHELL_URLS = [
     './',
