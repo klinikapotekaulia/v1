@@ -52,7 +52,7 @@ window.AppDashboard = {
     // ===== DASHBOARD KLINIK =====
     renderKlinik: function() {
         var self = this;
-        var today = new Date().toISOString().split('T')[0];
+        var today = Utils.today(); // FIX: pakai tanggal lokal, bukan UTC (lihat catatan di Utils.today)
         var pAntrian = db.collection('antrian').where('tanggal', '==', today).get();
         var pResep = db.collection('rekamMedis').where('status', '==', 'selesai').get();
 
@@ -95,7 +95,7 @@ window.AppDashboard = {
     // (hanya teks "Selamat datang" tanpa data apapun).
     renderDokter: function() {
         var self = this;
-        var today = new Date().toISOString().split('T')[0];
+        var today = Utils.today(); // FIX: pakai tanggal lokal, bukan UTC (lihat catatan di Utils.today)
         var pAntrian = db.collection('antrian').where('tanggal', '==', today).get();
 
         // Resep yang RM-nya sudah dibuat dokter tapi belum kelar diproses di Apotek.
@@ -142,7 +142,7 @@ window.AppDashboard = {
     // ===== DASHBOARD APOTEK =====
     renderApotek: function() {
         var self = this;
-        var today = new Date().toISOString().split('T')[0];
+        var today = Utils.today(); // FIX: pakai tanggal lokal, bukan UTC (lihat catatan di Utils.today)
         var pTrx = db.collection('transaksi').where('tanggal', '==', today).get();
         var pObat = DataCache.getObat();
         var pResep = db.collection('rekamMedis').where('status', '==', 'selesai').get();
@@ -206,7 +206,7 @@ window.AppDashboard = {
     // ===== DASHBOARD ADMIN =====
     renderAdmin: function() {
         var self = this;
-        var today = new Date().toISOString().split('T')[0];
+        var today = Utils.today(); // FIX: pakai tanggal lokal, bukan UTC (lihat catatan di Utils.today)
         var pAbsen = db.collection('absensi').where('tanggal', '==', today).get();
         var pKary = db.collection('karyawan').where('status', '==', 'aktif').get();
         var pSO = db.collection('stockOpnameRequests').where('status', '==', 'pending').get();
@@ -256,7 +256,7 @@ window.AppDashboard = {
     // ===== DASHBOARD KEUANGAN =====
     renderKeuangan: function() {
         var self = this;
-        var today = new Date().toISOString().split('T')[0];
+        var today = Utils.today(); // FIX: pakai tanggal lokal, bukan UTC (lihat catatan di Utils.today)
         var startMonth = today.slice(0, 8) + '01';
 
         var pTrx = db.collection('transaksi').where('tanggal', '>=', startMonth).where('tanggal', '<=', today).get();
@@ -713,7 +713,7 @@ window.AppDashboard = {
 
             function DailySalesContainer(props) {
                 var initialData = props.initialDocs;
-                var todayStr = new Date().toISOString().split('T')[0];
+                var todayStr = Utils.today(); // FIX: pakai tanggal lokal, bukan UTC
 
                 var _useState = React.useState(todayStr),
                     startDate = _useState[0],
@@ -785,7 +785,9 @@ window.AppDashboard = {
                     } else if (p === '7days') {
                         var d = new Date();
                         d.setDate(d.getDate() - 6);
-                        start = d.toISOString().split('T')[0];
+                        // FIX: sebelumnya toISOString() (UTC) bisa menggeser tanggal mundur/maju
+                        // satu hari tergantung jam saat itu. Ambil dari komponen tanggal lokal.
+                        start = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
                     } else if (p === 'month') {
                         start = todayStr.slice(0, 8) + '01';
                     } else {
