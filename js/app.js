@@ -415,6 +415,12 @@ function buildSidebarHtml(role) {
             var hasItem    = allowed.indexOf(section.key) !== -1 || allowed.indexOf(fullKey) !== -1;
             if (!hasItem) return;
 
+            // FITUR BARU: titik merah berkedip khusus menu Chat, menandakan ada
+            // pesan diskusi baru yang belum dibuka akun ini. Lihat startChatNotifWatcher().
+            var unreadBadge = (menu.id === 'chat')
+                ? '<span class="chat-unread-badge hidden ml-auto w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse flex-shrink-0"></span>'
+                : '';
+
             items += '<li>' +
                 '<button onclick="navigateTo(\'' + menu.module + '\', \'' + menu.label + '\')" ' +
                 'class="nav-btn w-full text-left px-3 py-2 rounded-lg text-slate-600 dark:text-slate-300 ' +
@@ -422,6 +428,7 @@ function buildSidebarHtml(role) {
                 'transition-colors flex items-center gap-3" data-page="' + menu.id + '">' +
                 '<i data-lucide="' + menu.icon + '" class="w-4 h-4 flex-shrink-0"></i>' +
                 '<span>' + menu.label + '</span>' +
+                unreadBadge +
                 '</button></li>';
         });
 
@@ -539,6 +546,137 @@ window.navigateTo = function (modulePath, title) {
 };
 
 // ============================================================
+// 6b. NOTIFIKASI CHAT (titik merah berkedip di sidebar + suara)
+//     - Memantau pesan TERAKHIR di 'groupChat' secara ringan (limit 1),
+//       dibandingkan dengan waktu terakhir akun ybs "membaca" chat
+//       (disimpan per-akun di 'chatReadStatus/{uid}').
+//     - Titik merah muncul kalau ada pesan baru dari ORANG LAIN yang
+//       datang SETELAH waktu baca terakhir, dan hilang begitu akun
+//       membuka halaman Diskusi & Chat (lihat js/chat.js -> init()).
+//     - Suara notifikasi dibuat langsung via Web Audio API (tidak perlu
+//       file audio terpisah), dan HANYA dibunyikan untuk pesan baru yang
+//       benar-benar masuk selama sesi ini berjalan (bukan riwayat lama
+//       saat pertama kali buka aplikasi / refresh).
+// ============================================================
+var _chatUnreadListener  = null;
+var _chatLastReadMillis  = null;
+var _chatFirstSnapshot   = true;
+window._chatPageActive   = false; // di-toggle oleh js/chat.js saat halaman Chat dibuka/ditutup
+
+function playChatNotifSound() {
+    try {
+        var Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        var ctx = new Ctx();
+        var now = ctx.currentTime;
+        // Nada dua-ketuk pendek ("ting-ting") khas notifikasi chat
+        [{ t: 0, f: 880 }, { t: 0.12, f: 1175 }].forEach(function (n) {
+            var osc  = ctx.createOscillator();
+            var gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = n.f;
+            gain.gain.setValueAtTime(0.0001, now + n.t);
+            gain.gain.exponentialRampToValueAtTime(0.18, now + n.t + 0.015);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + n.t + 0.25);
+            osc.connect(gain).connect(ctx.destination);
+            osc.start(now + n.t);
+            osc.stop(now + n.t + 0.3);
+        });
+        setTimeout(function () { ctx.close(); }, 700);
+    } catch (e) {
+        console.warn('Tidak dapat memutar suara notifikasi chat:', e);
+    }
+}
+
+function setChatUnreadBadge(show) {
+    document.querySelectorAll('.chat-unread-badge').forEach(function (el) {
+        el.classList.toggle('hidden', !show);
+    });
+}
+
+// Dipanggil saat akun membuka halaman Chat (js/chat.js) supaya titik merah
+// langsung hilang, dan disimpan ke Firestore supaya status "sudah dibaca"
+// ini juga berlaku kalau akun tsb login dari perangkat lain.
+window.markChatAsRead = function () {
+    _chatLastReadMillis = Date.now();
+    setChatUnreadBadge(false);
+    var uid = window.currentUid || (firebase.auth().currentUser ? firebase.auth().currentUser.uid : null);
+    if (!uid) return;
+    db.collection('chatReadStatus').doc(uid).set({
+        lastRead: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true }).catch(function (err) {
+        console.error('Gagal menyimpan status baca chat:', err);
+    });
+};
+
+function startChatNotifWatcher() {
+    var uid = window.currentUid || (firebase.auth().currentUser ? firebase.auth().currentUser.uid : null);
+    if (!uid) return;
+
+    stopChatNotifWatcher();
+    _chatFirstSnapshot = true;
+
+    db.collection('chatReadStatus').doc(uid).get().then(function (doc) {
+        if (doc.exists && doc.data().lastRead) {
+            _chatLastReadMillis = doc.data().lastRead.toMillis();
+        } else {
+            // Belum pernah ada catatan baca untuk akun ini (mis. baru pertama kali
+            // fitur ini aktif) -> anggap semua pesan yang sudah ada sekarang sudah
+            // dibaca, supaya tidak muncul badge palsu untuk riwayat lama.
+            _chatLastReadMillis = Date.now();
+            db.collection('chatReadStatus').doc(uid).set({
+                lastRead: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true }).catch(function () {});
+        }
+
+        _chatUnreadListener = db.collection('groupChat')
+            .orderBy('createdAt', 'desc')
+            .limit(1)
+            .onSnapshot(function (snapshot) {
+                if (snapshot.empty) { _chatFirstSnapshot = false; return; }
+
+                var msg = snapshot.docs[0].data();
+                var uidNow = window.currentUid || (firebase.auth().currentUser ? firebase.auth().currentUser.uid : null);
+
+                // Sedang membuka halaman Chat -> selalu dianggap terbaca, tanpa badge/suara.
+                if (window._chatPageActive) {
+                    window.markChatAsRead();
+                    _chatFirstSnapshot = false;
+                    return;
+                }
+
+                if (!msg.createdAt) { _chatFirstSnapshot = false; return; } // penulisan lokal, timestamp belum jadi
+
+                var msgMillis    = msg.createdAt.toMillis();
+                var isFromOther  = msg.senderId !== uidNow;
+                var isUnread     = isFromOther && (_chatLastReadMillis === null || msgMillis > _chatLastReadMillis);
+
+                setChatUnreadBadge(isUnread);
+
+                // Suara HANYA untuk pesan baru yang masuk selama sesi ini berjalan,
+                // bukan saat pertama kali watcher ini menyala (baca riwayat lama).
+                if (isUnread && !_chatFirstSnapshot) {
+                    playChatNotifSound();
+                }
+
+                _chatFirstSnapshot = false;
+            }, function (err) {
+                console.error('Gagal memantau notifikasi chat:', err);
+            });
+    }).catch(function (err) {
+        console.error('Gagal memuat status baca chat:', err);
+    });
+}
+
+function stopChatNotifWatcher() {
+    if (_chatUnreadListener) {
+        _chatUnreadListener();
+        _chatUnreadListener = null;
+    }
+    setChatUnreadBadge(false);
+}
+
+// ============================================================
 // 7. BOOT APP (dipanggil setelah user terautentikasi)
 // ============================================================
 function startApp(userRole, userName, userTema) {
@@ -568,6 +706,7 @@ function startApp(userRole, userName, userTema) {
 
     renderSidebar(userRole);
     navigateTo('dashboard', 'Dashboard');
+    startChatNotifWatcher();
 }
 
 // ============================================================
@@ -631,6 +770,7 @@ firebase.auth().onAuthStateChanged(function (user) {
     } else {
         // User belum login — tampilkan form login
         // window.AppAuth didefinisikan di auth.js yang diload setelah app.js
+        stopChatNotifWatcher(); // FITUR BARU: hentikan pemantau notifikasi chat saat logout
         document.body.classList.remove('theme-win98'); // FITUR BARU: reset tema saat logout
         if (window.AppAuth && typeof window.AppAuth.renderLogin === 'function') {
             window.AppAuth.renderLogin();
