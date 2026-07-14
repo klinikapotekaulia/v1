@@ -246,6 +246,13 @@ service cloud.firestore {
     // js/keuangan/payroll.js bisa ditekan oleh admin, tapi write ditolak karena rule lama
     // cuma izinkan 'keuangan'.
     match /thrPembayaranHistory/{id} { allow read, write: if isAdminKeuangan(); }
+    // BARU: pemasukan non-penjualan (mis. uang/kembalian yang DITERIMA dari supplier
+    // saat retur tukar barang dikonfirmasi, selisih<0 & caraSelisih='tunai' —
+    // lihat js/apotek/retur.js konfirmasiBarang()). Dipakai oleh
+    // js/keuangan/laporanKeuangan.js untuk laporan Arus Kas.
+    // Hanya dibuat lewat konfirmasi retur oleh admin/keuangan, jadi rule sama
+    // ketatnya dengan koleksi kas lain -> isAdminKeuangan() untuk semua operasi.
+    match /kasMasuk/{id} { allow read, write: if isAdminKeuangan(); }
 
     // ------------------------------------------------------------
     // CHAT GRUP — untuk diskusi saling tanya jawab semua user
