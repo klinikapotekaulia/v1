@@ -12,6 +12,13 @@ window.AppKeuanganLaporanKeuangan = {
     dataPemasukanLain: [], // FITUR BARU: pemasukan non-penjualan (kasMasuk), mis. selisih retur tukar barang
     summary: null,         // FITUR BARU: dipakai oleh exportExcel()
 
+    // FITUR BARU (Laporan Bayangan): dipakai utk hitung Payroll Real-Time & Hutang Jatuh Tempo
+    dataKaryawan: [],
+    configGaji: null,
+    configPembagian: null,
+    dataHutangBelumLunas: [],
+    endDate: null,
+
     render: function() {
         var d = new Date();
         var defaultMonth = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
@@ -41,6 +48,7 @@ window.AppKeuanganLaporanKeuangan = {
         var bulan = monthInput.value; // Format: YYYY-MM
         var startDate = bulan + '-01';
         var endDate = bulan + '-31';
+        this.endDate = endDate; // dipakai lagi di renderReport() utk filter Hutang Jatuh Tempo
 
         // Bulan sebelumnya, untuk perbandingan pertumbuhan (FITUR BARU: laporan lebih lengkap)
         var prevParts = bulan.split('-');
@@ -60,7 +68,16 @@ window.AppKeuanganLaporanKeuangan = {
         var pPayroll = db.collection('payrollHistory').where('bulan', '==', bulan).get();
         var pTrxPrev = db.collection('transaksi').where('tanggal', '>=', prevBulan + '-01').where('tanggal', '<=', prevBulan + '-31').get();
 
-        Promise.all([pTrx, pKeluar, pBeli, pPayroll, pTrxPrev, pMasuk]).then(function(results) {
+        // FITUR BARU (Laporan Bayangan): data tambahan utk hitung Payroll REAL-TIME (akrual, pakai
+        // formula sama seperti js/keuangan/payroll.js tapi jendelanya dipatok ke bulan kalender
+        // berjalan, BUKAN "sejak terakhir dibayar") + daftar hutang usaha yg masih berjalan (utk
+        // difilter jatuh tempo <= akhir bulan ini).
+        var pKaryawan = db.collection('karyawan').where('status', '==', 'aktif').get();
+        var pCfgGaji = db.collection('pengaturanGaji').doc('global').get();
+        var pCfgBagi = db.collection('pengaturanPembagian').doc('global').get();
+        var pHutang = db.collection('pembelian').where('statusPelunasan', '!=', 'lunas').get();
+
+        Promise.all([pTrx, pKeluar, pBeli, pPayroll, pTrxPrev, pMasuk, pKaryawan, pCfgGaji, pCfgBagi, pHutang]).then(function(results) {
             self.dataTransaksi = [];
             results[0].forEach(function(doc) { var d = doc.data(); d.id = doc.id; self.dataTransaksi.push(d); });
 
@@ -80,11 +97,201 @@ window.AppKeuanganLaporanKeuangan = {
             self.dataPemasukanLain = [];
             results[5].forEach(function(doc) { var d = doc.data(); d.id = doc.id; self.dataPemasukanLain.push(d); });
 
+            // FITUR BARU (Laporan Bayangan)
+            self.dataKaryawan = [];
+            results[6].forEach(function(doc) { var d = doc.data(); d.id = doc.id; self.dataKaryawan.push(d); });
+            self.configGaji = results[7].exists ? results[7].data() : { apotek: [], klinik: [] };
+            self.configPembagian = results[8].exists ? results[8].data() : {};
+            self.dataHutangBelumLunas = [];
+            results[9].forEach(function(doc) { var d = doc.data(); d.id = doc.id; self.dataHutangBelumLunas.push(d); });
+
             self.renderReport();
         }).catch(function(err) {
             Utils.toast('Gagal memuat laporan: ' + err.message, 'error');
             console.error(err);
         });
+    },
+
+    // ================================================================
+    // LAPORAN BAYANGAN (Real-Time) — helper functions
+    // ================================================================
+    // CATATAN PENTING: rumus di bawah ini SENGAJA meniru persis
+    // js/keuangan/payroll.js (_hitungRekapPeriode, _hitungPayrollInner,
+    // _slotArr, _persenTHR) supaya angka "Payroll Real-Time" di sini
+    // konsisten dengan Payroll module. Kalau formula pembagian hasil di
+    // payroll.js diubah, bagian ini JUGA HARUS diupdate biar tetap sinkron.
+    //
+    // Bedanya dengan payroll.js: di sana jendela akumulasi tiap karyawan
+    // dimulai dari "terakhir dia dibayarkan" (bisa lintas bulan). Di sini
+    // jendelanya dipatok SAMA UNTUK SEMUA KARYAWAN = tanggal 1 s/d akhir
+    // bulan yang dipilih di Laporan Keuangan (pakai this.dataTransaksi yg
+    // sudah difilter ke bulan itu), karena tujuannya murni melihat beban
+    // bulan berjalan, bukan menghitung nominal yang harus dibayarkan.
+    // Format tanggal singkat "31 Jul 2026" utk label di kartu Laporan Bayangan.
+    _fmtTglSingkat: function(iso) {
+        if (!iso) return '-';
+        // endDate disimpan sbg 'YYYY-MM-31' (lihat init()) yang bisa saja tanggal tidak valid
+        // utk bulan ybs (mis. Februari) — Date akan otomatis "meluber" ke bulan berikutnya,
+        // jadi dipotong dulu ke tanggal akhir bulan yg valid.
+        var parts = iso.split('-');
+        var d = new Date(parseInt(parts[0]), parseInt(parts[1]), 0); // hari terakhir bulan tsb
+        return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+    },
+
+    _slotArr: function(section) {
+        if (!section) return [];
+        if (Array.isArray(section)) return section;
+        return Array.isArray(section.slot) ? section.slot : [];
+    },
+    _persenTHR: function(section) {
+        if (!section || Array.isArray(section)) return 0;
+        return section.persenTHR || 0;
+    },
+
+    _hitungRekapBulanIniUntukPayroll: function() {
+        var cfg = this.configPembagian || {};
+        var nilaiRacikConfig = (cfg.racikObat) ? (cfg.racikObat.nilai || 0) : 0;
+
+        var rekapDokter = {};
+        var totalLabaObat = 0, totalPembulatan = 0, totalTuslahKlinik = 0, totalTuslahApotek = 0, totalNilaiRacik = 0, jmlResepLuar = 0;
+
+        // this.dataTransaksi sudah difilter ke bulan berjalan (lihat init()), jadi tidak perlu
+        // filter tanggal lagi di sini seperti di payroll.js punya (yang jendelanya per-karyawan).
+        this.dataTransaksi.forEach(function(t) {
+            var omzetObat = t.items ? t.items.reduce(function(s, i) { return s + (i.jumlah * i.hargaJual); }, 0) : 0;
+            var hppObat = t.items ? t.items.reduce(function(s, i) { return s + (i.jumlah * (i.hargaBeli || 0)); }, 0) : 0;
+            totalLabaObat += (omzetObat - hppObat);
+            totalPembulatan += (t.pembulatan || 0);
+
+            if (t.racikanItems && t.racikanItems.length > 0) {
+                totalNilaiRacik += (t.racikanItems.length * nilaiRacikConfig);
+            }
+
+            if (t.tipe === 'resep_klinik' && t.dokterId) {
+                if (!rekapDokter[t.dokterId]) rekapDokter[t.dokterId] = { jmlResepKlinik: 0, jasaResepLuar: 0 };
+                rekapDokter[t.dokterId].jmlResepKlinik += 1;
+            } else if (t.tipe === 'resep_luar' && t.dokterId) {
+                if (!rekapDokter[t.dokterId]) rekapDokter[t.dokterId] = { jmlResepKlinik: 0, jasaResepLuar: 0 };
+                rekapDokter[t.dokterId].jasaResepLuar += (t.jasaResep || 0);
+            }
+            if (t.tipe === 'resep_luar') jmlResepLuar++;
+
+            if (t.tindakanItems && t.tindakanItems.length > 0) {
+                t.tindakanItems.forEach(function(tin) {
+                    var labaTindakan = (tin.hargaJual || 0) - (tin.modal || 0);
+                    if (tin.kategori === 'klinik') totalTuslahKlinik += labaTindakan;
+                    else if (tin.kategori === 'apotek') totalTuslahApotek += labaTindakan;
+                });
+            }
+        });
+
+        return {
+            rekapDokter: rekapDokter, totalLabaObat: totalLabaObat, totalPembulatan: totalPembulatan,
+            totalTuslahKlinik: totalTuslahKlinik, totalTuslahApotek: totalTuslahApotek,
+            totalNilaiRacik: totalNilaiRacik, jmlResepLuar: jmlResepLuar
+        };
+    },
+
+    // Total beban payroll REAL-TIME (akrual) seluruh karyawan aktif, bulan kalender berjalan
+    // s/d hari ini, TERLEPAS dari sudah/belum ditekan tombol "Bayarkan" di modul Payroll.
+    // THR sengaja TIDAK diikutkan (sama seperti totalGaji di payroll.js), supaya apple-to-apple
+    // dengan "Beban Payroll" versi kas (payrollHistory) di laporan resmi di atas.
+    _hitungPayrollRealtime: function() {
+        var self = this;
+        var cfg = this.configPembagian || {};
+        var rekap = this._hitungRekapBulanIniUntukPayroll();
+        var rekapDokter = rekap.rekapDokter;
+        var totalGajiPokok = 0, totalTunjanganJasa = 0;
+
+        (this.dataKaryawan || []).forEach(function(k) {
+            var depKey = (k.departemen || '').toLowerCase();
+            var cfgGajiDep = (self.configGaji && self.configGaji[depKey]) || [];
+            var gajiCfg = cfgGajiDep.find(function(g) { return g.karyawanId === k.id; });
+            var gajiPokok = gajiCfg ? (gajiCfg.gajiPokok || 0) : 0;
+
+            var jasaMedis = 0, jasaDokter = 0, jasaResepLuar = 0;
+            if (rekapDokter[k.id]) {
+                jasaResepLuar = rekapDokter[k.id].jasaResepLuar || 0;
+                if (cfg.resepKlinik && Array.isArray(cfg.resepKlinik)) {
+                    var docConfig = cfg.resepKlinik.find(function(dc) { return dc.dokterId === k.id; });
+                    if (docConfig && rekapDokter[k.id].jmlResepKlinik > 0) {
+                        jasaMedis = (docConfig.jm || 0) * rekapDokter[k.id].jmlResepKlinik;
+                        jasaDokter = (docConfig.jd || 0) * rekapDokter[k.id].jmlResepKlinik;
+                    }
+                }
+            }
+
+            var bagPoolKlinik = 0, bagPoolApotek = 0;
+            if (cfg.resepKlinik) {
+                cfg.resepKlinik.forEach(function(dc) {
+                    var r = rekapDokter[dc.dokterId];
+                    if (r && r.jmlResepKlinik > 0) {
+                        var slotKlinik = (dc.slotKaryKlinik || []).find(function(s) { return s.karyawanId === k.id; });
+                        if (slotKlinik) {
+                            var totalPoolK = (dc.poolKaryKlinik || 0) * r.jmlResepKlinik;
+                            var hasilThrK = totalPoolK * ((dc.thrPersenKlinik || 0) / 100);
+                            var sisaCashK = totalPoolK - hasilThrK;
+                            bagPoolKlinik += sisaCashK * (slotKlinik.persen / 100);
+                        }
+                        var slotApotek = (dc.slotKaryApotek || []).find(function(s) { return s.karyawanId === k.id; });
+                        if (slotApotek) {
+                            var totalPoolA = (dc.poolKaryApotek || 0) * r.jmlResepKlinik;
+                            var hasilThrA = totalPoolA * ((dc.thrPersenApotek || 0) / 100);
+                            var sisaCashA = totalPoolA - hasilThrA;
+                            bagPoolApotek += sisaCashA * (slotApotek.persen / 100);
+                        }
+                    }
+                });
+            }
+
+            var bagTuslah = 0;
+            var slotsTindakanKlinik = self._slotArr(cfg.tindakanKlinik);
+            var persenThrTindakanKlinik = self._persenTHR(cfg.tindakanKlinik);
+            var mySlotTindakanKlinik = slotsTindakanKlinik.find(function(s) { return s.karyawanId === k.id; });
+            if (mySlotTindakanKlinik && mySlotTindakanKlinik.persen > 0) {
+                var hasilThrTK = rekap.totalTuslahKlinik * (persenThrTindakanKlinik / 100);
+                var sisaCashTK = rekap.totalTuslahKlinik - hasilThrTK;
+                bagTuslah += (sisaCashTK * mySlotTindakanKlinik.persen) / 100;
+            }
+            var slotsTindakanApotek = self._slotArr(cfg.tindakanApotek);
+            var persenThrTindakanApotek = self._persenTHR(cfg.tindakanApotek);
+            var mySlotTindakanApotek = slotsTindakanApotek.find(function(s) { return s.karyawanId === k.id; });
+            if (mySlotTindakanApotek && mySlotTindakanApotek.persen > 0) {
+                var hasilThrTA = rekap.totalTuslahApotek * (persenThrTindakanApotek / 100);
+                var sisaCashTA = rekap.totalTuslahApotek - hasilThrTA;
+                bagTuslah += (sisaCashTA * mySlotTindakanApotek.persen) / 100;
+            }
+
+            var bagOmzet = 0;
+            if (cfg.tunjanganOmzet && cfg.tunjanganOmzet.persen > 0) {
+                var poolOmzet = (rekap.totalLabaObat * cfg.tunjanganOmzet.persen) / 100;
+                var mySlotOmzet = self._slotArr(cfg.tunjanganOmzet).find(function(s) { return s.karyawanId === k.id; });
+                if (mySlotOmzet) bagOmzet = (poolOmzet * mySlotOmzet.persen) / 100;
+            }
+
+            var bagUM = 0;
+            if (cfg.uangMakan) {
+                var mySlotUM = self._slotArr(cfg.uangMakan).find(function(s) { return s.karyawanId === k.id; });
+                if (mySlotUM) bagUM = (rekap.totalPembulatan * mySlotUM.persen) / 100;
+            }
+
+            var bagTransport = 0;
+            if (cfg.transport) {
+                var mySlotTr = self._slotArr(cfg.transport).find(function(s) { return s.karyawanId === k.id; });
+                if (mySlotTr) bagTransport = ((cfg.transport.total || 0) * mySlotTr.persen) / 100;
+            }
+
+            var bagRacik = 0;
+            if (cfg.racikObat) {
+                var mySlotRacik = self._slotArr(cfg.racikObat).find(function(s) { return s.karyawanId === k.id; });
+                if (mySlotRacik) bagRacik = (rekap.totalNilaiRacik * mySlotRacik.persen) / 100;
+            }
+
+            totalGajiPokok += gajiPokok;
+            totalTunjanganJasa += jasaMedis + jasaDokter + jasaResepLuar + bagPoolKlinik + bagPoolApotek + bagTuslah + bagOmzet + bagUM + bagTransport + bagRacik;
+        });
+
+        return { totalGajiPokok: totalGajiPokok, totalTunjanganJasa: totalTunjanganJasa, total: totalGajiPokok + totalTunjanganJasa };
     },
 
     renderReport: function() {
@@ -155,6 +362,28 @@ window.AppKeuanganLaporanKeuangan = {
         var marginLabaKotor = totalOmzet > 0 ? (totalLabaKotor / totalOmzet) * 100 : 0;
         var marginLabaBersih = totalOmzet > 0 ? (labaBersih / totalOmzet) * 100 : 0;
 
+        // ============================================================
+        // FITUR BARU: LAPORAN KEUANGAN BAYANGAN (Real-Time / Akrual)
+        // ============================================================
+        // Beda dengan "Laba Bersih" di atas (basis KAS — payroll baru kehitung
+        // begitu tombol "Bayarkan" ditekan), laporan ini basis AKRUAL:
+        // 1) Payroll dihitung REAL-TIME pakai formula sama seperti modul Payroll,
+        //    walau belum pernah dibayarkan sepeser pun bulan ini.
+        // 2) Hutang usaha yang jatuh tempo s/d akhir bulan ini ikut dikurangi,
+        //    walau belum dibayar.
+        // Tujuannya: PSA bisa lihat untung/rugi SESUNGGUHNYA kapan saja di
+        // tengah bulan, tanpa nunggu payroll & hutang benar-benar cair.
+        var payrollRealtime = this._hitungPayrollRealtime();
+
+        var hutangJatuhTempoBulanIni = 0;
+        var daftarHutangJatuhTempo = (this.dataHutangBelumLunas || []).filter(function(h) {
+            return h.jatuhTempo && h.jatuhTempo <= self.endDate;
+        });
+        daftarHutangJatuhTempo.forEach(function(h) { hutangJatuhTempoBulanIni += h.totalHarga || 0; });
+
+        var labaBersihBayangan = totalLabaKotor - totalOperasional - payrollRealtime.total + totalPemasukanLain - hutangJatuhTempoBulanIni;
+        var selisihVsResmi = labaBersihBayangan - labaBersih; // kewajiban yg blm cair tapi sudah kehitung di sini
+
         // Simpan ringkasan supaya bisa dipakai fungsi export tanpa hitung ulang
         this.summary = {
             totalOmzet: totalOmzet, totalHPP: totalHPP, totalLabaKotor: totalLabaKotor,
@@ -164,7 +393,15 @@ window.AppKeuanganLaporanKeuangan = {
             totalGajiPokok: totalGajiPokok, totalTunjanganJasa: totalTunjanganJasa, totalBebanPayroll: totalBebanPayroll,
             totalPemasukanLain: totalPemasukanLain,
             totalKasKeluar: totalKasKeluar, labaBersih: labaBersih,
-            marginLabaKotor: marginLabaKotor, marginLabaBersih: marginLabaBersih, pertumbuhanOmzet: pertumbuhanOmzet
+            marginLabaKotor: marginLabaKotor, marginLabaBersih: marginLabaBersih, pertumbuhanOmzet: pertumbuhanOmzet,
+            // FITUR BARU: Laporan Bayangan
+            payrollRealtimeGajiPokok: payrollRealtime.totalGajiPokok,
+            payrollRealtimeTunjanganJasa: payrollRealtime.totalTunjanganJasa,
+            payrollRealtimeTotal: payrollRealtime.total,
+            hutangJatuhTempoBulanIni: hutangJatuhTempoBulanIni,
+            daftarHutangJatuhTempo: daftarHutangJatuhTempo,
+            labaBersihBayangan: labaBersihBayangan,
+            selisihVsResmi: selisihVsResmi
         };
 
         // 3. RENDER UI
@@ -225,6 +462,46 @@ window.AppKeuanganLaporanKeuangan = {
         html += '  <div class="text-sm text-amber-700 dark:text-amber-400">';
         html += '    <p class="font-semibold">Total Pembelian Kredit Bulan Ini: ' + Utils.formatRupiah(totalBeliKredit) + '</p>';
         html += '    <p class="text-xs mt-1">*Pembelian kredit tidak mempengaruhi Arus Kas bulan ini, tapi akan mempengaruhi saat faktur dilunasi di modul Hutang Usaha.</p>';
+        html += '  </div>';
+        html += '</div>';
+
+        // ============================================================
+        // Kartu 4: LAPORAN KEUANGAN BAYANGAN (Real-Time / Akrual)
+        // ============================================================
+        var isUntung = labaBersihBayangan >= 0;
+        var badgeBayangan = isUntung
+            ? '<span class="text-xs font-bold bg-emerald-500 text-white px-3 py-1 rounded-full">SUDAH UNTUNG</span>'
+            : '<span class="text-xs font-bold bg-red-500 text-white px-3 py-1 rounded-full animate-pulse">MASIH MINUS</span>';
+
+        html += '<div class="bg-white dark:bg-slate-800 rounded-xl border-2 border-primary-200 dark:border-primary-800 p-5 mb-6">';
+        html += '  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-1">';
+        html += '    <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2"><i data-lucide="ghost" class="w-5 h-5 text-primary-500"></i> Laporan Keuangan Bayangan (Real-Time)</h3>';
+        html += '    ' + badgeBayangan;
+        html += '  </div>';
+        html += '  <p class="text-xs text-slate-400 dark:text-slate-500 mb-4">Estimasi laba PSA sesungguhnya — payroll dihitung real-time (walau belum ditekan "Bayarkan") & hutang yang jatuh tempo bulan ini ikut dikurangi, walau belum dibayar.</p>';
+
+        html += '  <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">';
+        html += '    <div class="space-y-2 text-sm">';
+        html += '      <div class="flex justify-between"><span class="text-slate-500">Laba Kotor</span><span class="font-semibold text-gray-800 dark:text-white">' + Utils.formatRupiah(totalLabaKotor) + '</span></div>';
+        html += '      <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">- Gaji Pokok (real-time)</span><span class="text-red-500">' + Utils.formatRupiah(payrollRealtime.totalGajiPokok) + '</span></div>';
+        html += '      <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">- Tunjangan & Jasa (real-time)</span><span class="text-red-500">' + Utils.formatRupiah(payrollRealtime.totalTunjanganJasa) + '</span></div>';
+        html += '      <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">- Biaya Operasional Lain</span><span class="text-red-500">' + Utils.formatRupiah(totalOperasional) + '</span></div>';
+        if (totalPemasukanLain > 0) {
+            html += '      <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">+ Pemasukan Lain</span><span class="text-emerald-500">' + Utils.formatRupiah(totalPemasukanLain) + '</span></div>';
+        }
+        html += '      <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">- Hutang Jatuh Tempo (s/d ' + this._fmtTglSingkat(this.endDate) + ')</span><span class="text-red-500">' + Utils.formatRupiah(hutangJatuhTempoBulanIni) + '</span></div>';
+        html += '      <div class="flex justify-between border-t-2 border-slate-200 pt-3 mt-2"><span class="font-bold text-gray-800 dark:text-white">LABA BERSIH BAYANGAN</span><span class="font-bold text-lg ' + (isUntung ? 'text-emerald-600' : 'text-red-600') + '">' + Utils.formatRupiah(labaBersihBayangan) + '</span></div>';
+        html += '    </div>';
+
+        html += '    <div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 text-sm space-y-2">';
+        html += '      <div class="flex justify-between"><span class="text-slate-500">Laba Bersih resmi (basis kas)</span><span class="font-semibold text-gray-700 dark:text-slate-300">' + Utils.formatRupiah(labaBersih) + '</span></div>';
+        html += '      <div class="flex justify-between"><span class="text-slate-500">Laba Bersih Bayangan (basis akrual)</span><span class="font-semibold ' + (isUntung ? 'text-emerald-600' : 'text-red-600') + '">' + Utils.formatRupiah(labaBersihBayangan) + '</span></div>';
+        html += '      <div class="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2"><span class="text-slate-500">Selisih</span><span class="font-bold ' + (selisihVsResmi <= 0 ? 'text-red-500' : 'text-emerald-500') + '">' + (selisihVsResmi > 0 ? '+' : '') + Utils.formatRupiah(selisihVsResmi) + '</span></div>';
+        html += '      <p class="text-xs text-slate-400 pt-1">Selisih ini adalah kewajiban (payroll + hutang) yang sudah harus dihitung tapi belum tentu sudah cair sebagai kas.</p>';
+        if (daftarHutangJatuhTempo.length > 0) {
+            html += '      <p class="text-xs text-amber-600 dark:text-amber-400 pt-1 font-medium">' + daftarHutangJatuhTempo.length + ' faktur hutang jatuh tempo s/d akhir bulan ini, lihat detail di modul Hutang Usaha.</p>';
+        }
+        html += '    </div>';
         html += '  </div>';
         html += '</div>';
 
@@ -315,6 +592,29 @@ window.AppKeuanganLaporanKeuangan = {
                 masukRows.push([m.tanggal || '-', m.keterangan || '-', m.kategori || '-', m.jumlah || 0]);
             });
             XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(masukRows), 'Rincian Pemasukan Lain');
+        }
+
+        // FITUR BARU: sheet Laporan Bayangan (Real-Time / Akrual)
+        var bayangan = [
+            ['LAPORAN KEUANGAN BAYANGAN (Real-Time / Akrual)'], ['Periode: ' + bulan], [],
+            ['Laba Kotor', s.totalLabaKotor],
+            ['Gaji Pokok (real-time)', -s.payrollRealtimeGajiPokok],
+            ['Tunjangan & Jasa (real-time)', -s.payrollRealtimeTunjanganJasa],
+            ['Biaya Operasional Lain', -s.totalOperasional],
+            ['Pemasukan Lain', s.totalPemasukanLain || 0],
+            ['Hutang Jatuh Tempo Bulan Ini', -s.hutangJatuhTempoBulanIni],
+            ['LABA BERSIH BAYANGAN', s.labaBersihBayangan], [],
+            ['Laba Bersih resmi (basis kas)', s.labaBersih],
+            ['Selisih (kewajiban blm cair)', s.selisihVsResmi]
+        ];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(bayangan), 'Laporan Bayangan');
+
+        if (s.daftarHutangJatuhTempo && s.daftarHutangJatuhTempo.length > 0) {
+            var hutangRows = [['No. Faktur', 'Supplier', 'Jatuh Tempo', 'Status', 'Total Hutang']];
+            s.daftarHutangJatuhTempo.forEach(function(h) {
+                hutangRows.push([h.noFaktur || '-', h.supplier || '-', h.jatuhTempo || '-', h.statusPelunasan || '-', h.totalHarga || 0]);
+            });
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hutangRows), 'Hutang Jatuh Tempo');
         }
 
         XLSX.writeFile(wb, 'Laporan_Keuangan_' + bulan + '.xlsx');
