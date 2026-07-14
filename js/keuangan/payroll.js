@@ -307,17 +307,39 @@ window.AppKeuanganPayroll = {
             }
 
             // Bagian Tuslah/Tindakan
+            // FIX: sebelumnya HANYA mengecek SATU pool (Klinik ATAU Apotek),
+            // dipilih berdasarkan field departemen karyawan itu sendiri
+            // (k.departemen). Ini salah: pool mana yang berlaku seharusnya
+            // ditentukan oleh DI POOL MANA karyawan tsb DIMASUKKAN sebagai
+            // slot di pengaturan Pembagian Hasil (Tindakan Klinik / Tindakan
+            // Apotek) — BUKAN dari departemen karyawan itu sendiri. Akibatnya
+            // karyawan dengan departemen selain "Klinik" (misalnya "Dokter")
+            // yang dimasukkan ke slot "Tindakan Klinik (Tuslah)" TIDAK PERNAH
+            // dicek ke situ — kode malah mengecek slot "Tindakan Apotek" (yang
+            // tidak diisi untuknya), jadi tuslahnya selalu 0 walau sudah
+            // diset persennya di Pembagian Hasil. Sekarang: cek KEDUA pool
+            // secara independen, sama seperti pola bagPoolKlinik/bagPoolApotek
+            // di atas (yang sudah benar tidak bergantung pada departemen).
             var bagTuslah = 0, thrTuslah = 0;
-            var depTindakanKey = (depKey === 'klinik') ? 'tindakanKlinik' : 'tindakanApotek';
-            var slotsTindakan = self._slotArr(cfg[depTindakanKey]);
-            var persenThrTindakan = self._persenTHR(cfg[depTindakanKey]);
-            var mySlotTindakan = slotsTindakan.find(function(s) { return s.karyawanId === k.id; });
-            if (mySlotTindakan && mySlotTindakan.persen > 0) {
-                var totalTuslahDep = (depKey === 'klinik') ? rekap.totalTuslahKlinik : rekap.totalTuslahApotek;
-                var hasilThrTuslah = totalTuslahDep * (persenThrTindakan / 100);
-                var sisaCashTuslah = totalTuslahDep - hasilThrTuslah;
-                bagTuslah = (sisaCashTuslah * mySlotTindakan.persen) / 100;
-                if (mySlotTindakan.isTHR) thrTuslah = (hasilThrTuslah * mySlotTindakan.persen) / 100;
+
+            var slotsTindakanKlinik     = self._slotArr(cfg.tindakanKlinik);
+            var persenThrTindakanKlinik = self._persenTHR(cfg.tindakanKlinik);
+            var mySlotTindakanKlinik    = slotsTindakanKlinik.find(function(s) { return s.karyawanId === k.id; });
+            if (mySlotTindakanKlinik && mySlotTindakanKlinik.persen > 0) {
+                var hasilThrTK = rekap.totalTuslahKlinik * (persenThrTindakanKlinik / 100);
+                var sisaCashTK = rekap.totalTuslahKlinik - hasilThrTK;
+                bagTuslah += (sisaCashTK * mySlotTindakanKlinik.persen) / 100;
+                if (mySlotTindakanKlinik.isTHR) thrTuslah += (hasilThrTK * mySlotTindakanKlinik.persen) / 100;
+            }
+
+            var slotsTindakanApotek     = self._slotArr(cfg.tindakanApotek);
+            var persenThrTindakanApotek = self._persenTHR(cfg.tindakanApotek);
+            var mySlotTindakanApotek    = slotsTindakanApotek.find(function(s) { return s.karyawanId === k.id; });
+            if (mySlotTindakanApotek && mySlotTindakanApotek.persen > 0) {
+                var hasilThrTA = rekap.totalTuslahApotek * (persenThrTindakanApotek / 100);
+                var sisaCashTA = rekap.totalTuslahApotek - hasilThrTA;
+                bagTuslah += (sisaCashTA * mySlotTindakanApotek.persen) / 100;
+                if (mySlotTindakanApotek.isTHR) thrTuslah += (hasilThrTA * mySlotTindakanApotek.persen) / 100;
             }
 
             // Tunjangan Omzet
