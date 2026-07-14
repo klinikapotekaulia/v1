@@ -3,7 +3,7 @@
  * Strategi: Cache shell statis, skip Firebase/CDN dynamic calls.
  */
 
-var CACHE_NAME = 'aulia-v9'; // FIX: dinaikkan - perbaikan menyeluruh bug tanggal UTC di semua modul penulis data (transaksi, rekam medis, pembelian, retur, dll) + perbaikan badge & suara notifikasi chat
+var CACHE_NAME = 'aulia-v10'; // FIX: dinaikkan - perbaikan bug Tuslah/Tindakan di payroll (karyawan non-departemen "Klinik" spt Dokter yg dimasukkan ke pool Tindakan Klinik tidak pernah dapat bagian)
 
 var SHELL_URLS = [
     './',
