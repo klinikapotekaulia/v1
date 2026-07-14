@@ -229,9 +229,19 @@ window.AppApotekTransaksi = {
         var self = this;
         var html = '<div class="flex justify-between items-center mb-3">';
         html += '<h3 class="font-semibold text-gray-800 dark:text-white">Tindakan & Jasa Medis</h3>';
-        
+
         if (this.tipe !== 'resep_klinik') {
-            html += '<button type="button" onclick="AppApotekTransaksi.addTindakanApotek()" class="text-sm bg-teal-50 dark:bg-teal-900/30 text-teal-600 px-3 py-1.5 rounded-lg font-medium hover:bg-teal-100">+ Tindakan Apotek</button>';
+            // FITUR BARU (permintaan user): "Tindakan Klinik" sekarang juga bisa
+            // ditambahkan langsung di sini (Obat Bebas / Resep Luar), berdampingan
+            // dengan "Tindakan Apotek" — dipakai untuk tindakan klinik yang terjadi
+            // TANPA resep dokter/rekam medis (mis. cek tensi, ganti perban, suntik
+            // langsung di kasir). Kalau tindakannya berasal dari resep dokter yang
+            // sudah tercatat di Rekam Medis, tetap pakai alur "Resep Klinik" seperti
+            // biasa (otomatis, lihat onSelectResep()).
+            html += '<div class="flex gap-2">';
+            html += '<button type="button" onclick="AppApotekTransaksi.addTindakan(\'klinik\')" class="text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 px-3 py-1.5 rounded-lg font-medium hover:bg-blue-100">+ Tindakan Klinik</button>';
+            html += '<button type="button" onclick="AppApotekTransaksi.addTindakan(\'apotek\')" class="text-sm bg-teal-50 dark:bg-teal-900/30 text-teal-600 px-3 py-1.5 rounded-lg font-medium hover:bg-teal-100">+ Tindakan Apotek</button>';
+            html += '</div>';
         } else {
             html += '<span class="text-xs text-blue-600">Otomatis dari Rekam Medis</span>';
         }
@@ -241,22 +251,31 @@ window.AppApotekTransaksi = {
         container.innerHTML = html;
     },
 
-    addTindakanApotek: function() {
+    // FIX: sebelumnya hanya ada addTindakanApotek() (khusus kategori 'apotek').
+    // Digeneralisasi jadi addTindakan(kategori) supaya bisa dipakai untuk
+    // 'klinik' maupun 'apotek', dropdown-nya otomatis difilter sesuai kategori
+    // yang dipilih dari master data Tindakan (js/pengaturan/tindakan.js).
+    addTindakan: function(kategori) {
         var container = document.getElementById('trx-tindakan-list');
         if (container.querySelector('p.italic')) container.innerHTML = '';
-        var idx = container.children.length;
-        
+        var idx = container.children.length + '-' + Date.now(); // FIX: id unik walau ada baris klinik & apotek campur
+
+        var isKlinik = (kategori === 'klinik');
+        var warna = isKlinik ? 'blue' : 'teal';
+        var labelKategori = isKlinik ? 'Klinik' : 'Apotek';
+
         var html = '<div id="trx-tindakan-row-' + idx + '" class="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/30 p-2 rounded-lg border border-slate-100 dark:border-slate-700">';
-        html += '<select id="trx-tindakan-select-' + idx + '" onchange="AppApotekTransaksi.onSelectTindakan(' + idx + ')" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm">';
-        html += '<option value="">-- Pilih Tindakan Apotek --</option>';
+        html += '<span class="text-[10px] font-semibold px-1.5 py-1 rounded bg-' + warna + '-100 dark:bg-' + warna + '-900/30 text-' + warna + '-600 flex-shrink-0">' + labelKategori + '</span>';
+        html += '<select id="trx-tindakan-select-' + idx + '" onchange="AppApotekTransaksi.onSelectTindakan(\'' + idx + '\')" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm">';
+        html += '<option value="">-- Pilih Tindakan ' + labelKategori + ' --</option>';
         this.masterTindakan.forEach(function(t) {
-            if (t.kategori === 'apotek') {
+            if (t.kategori === kategori) {
                 html += '<option value="' + t.id + '" data-harga="' + (t.hargaJual || 0) + '">' + Utils.escapeHtml(t.nama) + ' (' + Utils.formatRupiah(t.hargaJual) + ')</option>';
             }
         });
         html += '</select>';
-        html += '<div class="flex items-center gap-2 w-1/3"><input type="number" id="trx-tindakan-harga-' + idx + '" value="0" readonly class="w-full px-2 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm text-right font-bold text-teal-600"></div>';
-        html += '<button type="button" onclick="AppApotekTransaksi.removeTindakan(' + idx + ')" class="p-2 text-red-400 hover:text-red-600"><i data-lucide="x" class="w-5 h-5"></i></button>';
+        html += '<div class="flex items-center gap-2 w-1/3"><input type="number" id="trx-tindakan-harga-' + idx + '" value="0" readonly class="w-full px-2 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm text-right font-bold text-' + warna + '-600"></div>';
+        html += '<button type="button" onclick="AppApotekTransaksi.removeTindakan(\'' + idx + '\')" class="p-2 text-red-400 hover:text-red-600"><i data-lucide="x" class="w-5 h-5"></i></button>';
         html += '</div>';
         
         container.insertAdjacentHTML('beforeend', html);
@@ -517,13 +536,20 @@ window.AppApotekTransaksi = {
                 });
             }
         } else {
+            // FIX: sebelumnya kategori di-hardcode 'apotek' untuk SEMUA baris tindakan
+            // manual, padahal sekarang baris bisa berasal dari dropdown "Tindakan
+            // Klinik" ATAU "Tindakan Apotek" (lihat addTindakan()). Ambil kategori
+            // dari master data tindakan itu sendiri (tData.kategori) supaya tindakan
+            // klinik tanpa resep tetap tercatat kategori 'klinik' — ini yang membuatnya
+            // ikut terhitung ke pool "Tindakan Klinik (Tuslah)" di payroll, bukan
+            // ke pool Apotek.
             document.querySelectorAll('[id^="trx-tindakan-row-"]').forEach(function(row) {
-                var idx = row.id.split('-').pop();
+                var idx = row.id.replace('trx-tindakan-row-', '');
                 var selectEl = document.getElementById('trx-tindakan-select-' + idx);
                 var tindId = selectEl.value;
                 if(tindId) {
                     var tData = self.masterTindakan.find(function(t){ return t.id === tindId; });
-                    if(tData) tindakanItemsFinal.push({ namaTindakan: tData.nama, hargaJual: tData.hargaJual, modal: tData.modal, kategori: 'apotek' });
+                    if(tData) tindakanItemsFinal.push({ namaTindakan: tData.nama, hargaJual: tData.hargaJual, modal: tData.modal, kategori: tData.kategori || 'apotek' });
                 }
             });
         }
