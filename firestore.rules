@@ -292,7 +292,19 @@ service cloud.firestore {
     // PENGATURAN (settings/master data)
     // ------------------------------------------------------------
     match /pengaturan/antrianDisplay           { allow read: if true; allow write: if isAnyStaff(); }
+    // BUGFIX: js/pengaturan/displayAntrian.js (halaman Pengaturan > Display Antrian) baca/tulis
+    // dokumen INI (logo TV, running text, link YouTube, tema) -- beda dgn 'antrianDisplay' di atas
+    // (yg isinya data nomor antrian, dipakai js/klinik/antrian.js). Karena belum terdaftar, kena
+    // default-deny -> permission-denied -> "Gagal memuat pengaturan: ...". Read harus publik (if
+    // true) krn display.html (layar TV ruang tunggu) baca dokumen ini TANPA login sama sekali.
+    match /pengaturan/antrianDisplaySettings   { allow read: if true; allow write: if isAdminKeuangan(); }
     match /pengaturan/profil                   { allow read: if isAnyStaff(); allow write: if isAdminKeuangan(); }
+    // BARU: status ringkas Laporan Keuangan Bayangan bulan berjalan (laba bersih bayangan +
+    // proyeksi akhir bulan), ditulis otomatis oleh js/keuangan/laporanKeuangan.js tiap kali
+    // admin/keuangan membuka laporan bulan berjalan. Dibaca oleh sidebar (js/app.js) utk badge
+    // titik merah/hijau di menu "Lap. Keuangan" -> read cukup isAdminKeuangan() krn cuma role
+    // itu yg bisa lihat menunya (lihat roleAccess di js/app.js).
+    match /pengaturan/statusBayangan           { allow read, write: if isAdminKeuangan(); }
     match /pengaturanGaji/{id}                 { allow read, write: if isAdminKeuangan(); }
     // BUGFIX: dibaca oleh js/apotek/transaksi.js (Promise.all) untuk hitung
     // margin resep & racik obat saat transaksi -> sebelumnya read dibatasi
