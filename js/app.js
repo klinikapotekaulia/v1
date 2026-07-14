@@ -430,6 +430,12 @@ function buildSidebarHtml(role) {
                 ? '<span class="chat-unread-badge hidden ml-auto w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0"></span>'
                 : '';
 
+            // FITUR BARU: titik status Laporan Keuangan Bayangan bulan berjalan (merah = masih
+            // minus, hijau = sudah untung) di menu "Lap. Keuangan". Lihat startLaporanBayanganWatcher().
+            var bayanganBadge = (menu.id === 'laporan-keuangan')
+                ? '<span class="laporan-bayangan-badge hidden ml-auto w-2 h-2 rounded-full flex-shrink-0"></span>'
+                : '';
+
             items += '<li>' +
                 '<button onclick="navigateTo(\'' + menu.module + '\', \'' + menu.label + '\')" ' +
                 'class="nav-btn w-full text-left px-3 py-2 rounded-lg text-slate-600 dark:text-slate-300 ' +
@@ -438,6 +444,7 @@ function buildSidebarHtml(role) {
                 '<i data-lucide="' + menu.icon + '" class="w-4 h-4 flex-shrink-0"></i>' +
                 '<span>' + menu.label + '</span>' +
                 unreadBadge +
+                bayanganBadge +
                 '</button></li>';
         });
 
@@ -639,6 +646,51 @@ function setChatUnreadBadge(show) {
     });
 }
 
+// FITUR BARU: titik status Laporan Keuangan Bayangan di sidebar. Dibaca dari dokumen
+// pengaturan/statusBayangan yang ditulis otomatis oleh js/keuangan/laporanKeuangan.js
+// setiap kali admin/keuangan membuka laporan bulan berjalan (lihat renderReport() di sana).
+// hijau = sudah untung, merah berkedip = masih minus, disembunyikan kalau datanya bukan
+// utk bulan kalender berjalan (basi/belum pernah dibuka bulan ini).
+var _laporanBayanganListener = null;
+
+function setLaporanBayanganBadge(status) {
+    document.querySelectorAll('.laporan-bayangan-badge').forEach(function (el) {
+        el.classList.remove('hidden', 'bg-emerald-500', 'bg-red-500', 'animate-pulse');
+        if (status === 'untung') {
+            el.classList.add('bg-emerald-500');
+        } else if (status === 'minus') {
+            el.classList.add('bg-red-500', 'animate-pulse');
+        } else {
+            el.classList.add('hidden'); // status null/basi -> sembunyikan, jangan sesatkan
+        }
+    });
+}
+
+function startLaporanBayanganWatcher() {
+    stopLaporanBayanganWatcher();
+
+    _laporanBayanganListener = db.collection('pengaturan').doc('statusBayangan')
+        .onSnapshot(function (doc) {
+            if (!doc.exists) { setLaporanBayanganBadge(null); return; }
+            var data = doc.data();
+            var today = new Date();
+            var todayBulan = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0');
+            if (data.bulan !== todayBulan) { setLaporanBayanganBadge(null); return; } // data basi, jangan ditampilkan
+            setLaporanBayanganBadge(data.labaBersihBayangan >= 0 ? 'untung' : 'minus');
+        }, function (err) {
+            // Wajar kalau role tidak punya akses (bukan admin/keuangan) -> diam saja, tidak perlu di-log sbg error.
+            setLaporanBayanganBadge(null);
+        });
+}
+
+function stopLaporanBayanganWatcher() {
+    if (_laporanBayanganListener) {
+        _laporanBayanganListener();
+        _laporanBayanganListener = null;
+    }
+    setLaporanBayanganBadge(null);
+}
+
 // Dipanggil saat akun membuka halaman Chat (js/chat.js) supaya titik merah
 // langsung hilang, dan disimpan ke Firestore supaya status "sudah dibaca"
 // ini juga berlaku kalau akun tsb login dari perangkat lain.
@@ -752,6 +804,12 @@ function startApp(userRole, userName, userTema) {
     renderSidebar(userRole);
     navigateTo('dashboard', 'Dashboard');
     startChatNotifWatcher();
+    // FITUR BARU: badge Laporan Keuangan Bayangan hanya relevan utk role yg bisa buka
+    // menunya (lihat rule pengaturan/statusBayangan & roleAccess) -> selain itu tidak
+    // perlu buka listener sama sekali (hindari permission-denied yg tidak berguna).
+    if (roleSafe === 'admin' || roleSafe === 'keuangan') {
+        startLaporanBayanganWatcher();
+    }
 }
 
 // ============================================================
