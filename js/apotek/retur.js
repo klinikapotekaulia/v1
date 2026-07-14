@@ -646,8 +646,9 @@ window.AppApotekRetur = {
             opts += '<option value="hutang_baru">Tambahkan sebagai Hutang Baru ke Supplier</option>';
             opts += '<option value="potong_hutang">Tambahkan ke Faktur Hutang Existing</option>';
         } else {
+            opts += '<option value="tunai">Terima Tunai Sekarang (uang masuk ke kas)</option>';
             opts += '<option value="potong_hutang">Potongkan ke Faktur Hutang Existing</option>';
-            opts += '<option value="catat">Catat Saja (diselesaikan manual / terima tunai dari supplier)</option>';
+            opts += '<option value="catat">Catat Saja (diselesaikan manual nanti)</option>';
         }
         // Isi ulang hanya kalau opsinya berubah, biar pilihan user tidak ke-reset tiap ketik qty/harga.
         var currentOpts = Array.prototype.map.call(caraSel.options, function(o) { return o.value; }).join(',');
@@ -870,6 +871,10 @@ window.AppApotekRetur = {
         // sebelum write, tapi doc ref baru boleh dibuat kapan saja).
         var kasKeluarRef = (selisih > 0 && retur.caraSelisih === 'tunai') ? db.collection('kasKeluar').doc() : null;
         var hutangBaruRef = (selisih > 0 && retur.caraSelisih === 'hutang_baru') ? db.collection('pembelian').doc() : null;
+        // BARU: selisih<0 = apotek DAPAT kembalian/uang dari supplier -> langsung tercatat
+        // sbg pemasukan (kasMasuk) begitu retur dikonfirmasi, tanpa alur approval terpisah
+        // (berbeda dgn kasKeluar) karena yg mengonfirmasi retur sudah admin/keuangan sendiri.
+        var kasMasukRef = (selisih < 0 && retur.caraSelisih === 'tunai') ? db.collection('kasMasuk').doc() : null;
 
         db.runTransaction(function(tx) {
             var reads = [tx.get(returRef)].concat(obatRefs.map(function(r) { return tx.get(r); }));
@@ -969,6 +974,22 @@ window.AppApotekRetur = {
                         });
                         returUpdate.statusSelisih = 'selesai';
 
+                    } else if (retur.caraSelisih === 'tunai' && kasMasukRef && selisih < 0) {
+                        // Selisih negatif + terima tunai sekarang -> langsung masuk sbg pemasukan lain,
+                        // otomatis ikut dihitung di Laporan Keuangan (Arus Kas & Laba/Rugi).
+                        tx.set(kasMasukRef, {
+                            tanggal: Utils.today(), // pakai tanggal lokal, bukan UTC
+                            kategori: 'Retur Tukar Barang',
+                            keterangan: 'Selisih diterima dari ' + retur.supplier + ' (retur tukar barang)',
+                            jumlah: Math.abs(selisih),
+                            status: 'approved',
+                            referenceId: id,
+                            inputOleh: window.currentUserName || 'Admin',
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        returUpdate.statusSelisih = 'selesai';
+                        returUpdate.kasMasukId = kasMasukRef.id;
+
                     } else if (retur.caraSelisih === 'catat') {
                         // Selisih negatif tanpa penyesuaian otomatis (mis. supplier akan kirim tunai
                         // belakangan). Tetap tercatat di dokumen retur agar bisa ditindaklanjuti manual.
@@ -982,6 +1003,7 @@ window.AppApotekRetur = {
             var msg = 'Retur tukar barang dikonfirmasi. Stok telah disesuaikan.';
             if (selisih > 0 && retur.caraSelisih === 'tunai') msg += ' Pengajuan kas keluar sebesar ' + Utils.formatRupiah(selisih) + ' menunggu approval.';
             if (selisih > 0 && retur.caraSelisih === 'hutang_baru') msg += ' Hutang baru ke supplier sebesar ' + Utils.formatRupiah(selisih) + ' telah dicatat.';
+            if (selisih < 0 && retur.caraSelisih === 'tunai') msg += ' Kas masuk sebesar ' + Utils.formatRupiah(Math.abs(selisih)) + ' telah tercatat.';
             if (retur.caraSelisih === 'potong_hutang') msg += ' Faktur hutang terkait telah disesuaikan.';
             Utils.toast(msg, 'success');
             AuditLog.catat({
