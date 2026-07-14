@@ -3,7 +3,7 @@
  * Strategi: Cache shell statis, skip Firebase/CDN dynamic calls.
  */
 
-var CACHE_NAME = 'aulia-v10'; // FIX: dinaikkan - perbaikan bug Tuslah/Tindakan di payroll (karyawan non-departemen "Klinik" spt Dokter yg dimasukkan ke pool Tindakan Klinik tidak pernah dapat bagian)
+var CACHE_NAME = 'aulia-v11'; // FIX: dinaikkan - fitur baru "Tindakan Klinik" bisa ditambahkan langsung di transaksi Obat Bebas/Resep Luar tanpa perlu resep dokter
 
 var SHELL_URLS = [
     './',
