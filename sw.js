@@ -3,7 +3,7 @@
  * Strategi: Cache shell statis, skip Firebase/CDN dynamic calls.
  */
 
-var CACHE_NAME = 'aulia-v13'; // FIX: bump cache — SatuSehat dipindah ke Menu Utama (terbuka semua akun), perbaikan rules & ICD-10 parsing
+var CACHE_NAME = 'aulia-v14'; // FIX: ganti Firebase config ke project produksi klinikapotekaulia-61641
 
 var SHELL_URLS = [
     './',

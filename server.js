@@ -63,12 +63,12 @@ async function getSatuSehatToken(clientId, clientSecret, env) {
 // Serve a config endpoint if needed for environment-based Firebase config (optional/fallback)
 app.get('/api/config', (req, res) => {
   res.json({
-    apiKey: process.env.FIREBASE_API_KEY || "AIzaSyCuK8fZRlrU7296U8gmZZ73EdPtODxsNKA",
-    authDomain: process.env.FIREBASE_AUTH_DOMAIN || "apotek-aulia-d0667.firebaseapp.com",
-    projectId: process.env.FIREBASE_PROJECT_ID || "apotek-aulia-d0667",
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "apotek-aulia-d0667.firebasestorage.app",
-    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "994675867657",
-    appId: process.env.FIREBASE_APP_ID || "1:994675867657:web:61579147786fc683caf8d8"
+    apiKey: process.env.FIREBASE_API_KEY || "AIzaSyDXuiTRwHttekv5iy6rk8RJA_pVL25v-U4",
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN || "klinikapotekaulia-61641.firebaseapp.com",
+    projectId: process.env.FIREBASE_PROJECT_ID || "klinikapotekaulia-61641",
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "klinikapotekaulia-61641.firebasestorage.app",
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "857781555251",
+    appId: process.env.FIREBASE_APP_ID || "1:857781555251:web:33dbb41f292026f9ef9346"
   });
 });
 
