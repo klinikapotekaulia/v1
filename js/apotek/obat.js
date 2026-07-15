@@ -17,7 +17,6 @@ window.AppApotekObat = {
         html += '  </div>';
         html += '  <div class="flex flex-wrap gap-2">';
         html += '    <button onclick="AppApotekObat.downloadTemplate()" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> Template Excel</button>';
-        html += '    <button onclick="AppApotekObat.exportData()" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2"><i data-lucide="file-down" class="w-4 h-4"></i> Ekspor Obat</button>';
         html += '    <label class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2 cursor-pointer"><i data-lucide="upload" class="w-4 h-4"></i> Import Excel <input type="file" accept=".xlsx,.xls" class="hidden" onchange="AppApotekObat.handleFileUpload(event)"></label>';
         html += '    <button onclick="AppApotekObat.openForm()" class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2"><i data-lucide="plus" class="w-4 h-4"></i> Tambah Manual</button>';
         html += '  </div>';
@@ -221,56 +220,6 @@ window.AppApotekObat = {
         var wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Master Obat");
         XLSX.writeFile(wb, "Template_Import_Obat_Aulia.xlsx");
-    },
-
-    // ==========================================
-    // FITUR EXCEL EXPORT OBAT & STOK
-    // ==========================================
-
-    exportData: function() {
-        if (!this.data || this.data.length === 0) {
-            Utils.toast('Tidak ada data obat untuk diekspor.', 'error');
-            return;
-        }
-
-        // Ekspor mengikuti hasil pencarian yang sedang aktif, biar konsisten dengan yang tampil di layar
-        var list = this.data;
-        if (this.searchQuery) {
-            list = list.filter(o =>
-                (o.namaObat && o.namaObat.toLowerCase().includes(this.searchQuery)) ||
-                (o.kodeObat && o.kodeObat.toLowerCase().includes(this.searchQuery))
-            );
-        }
-
-        var ws_data = [
-            ['Kode Obat', 'Nama Obat', 'Kategori', 'Satuan', 'HPP (Rp)', 'Harga Jual (Rp)', 'Stok', 'Stok Minimum', 'Exp Date (YYYY-MM-DD)', 'Status Stok']
-        ];
-
-        list.forEach(o => {
-            var statusStok = (o.stok <= (o.stokMinimum || 0)) ? 'Stok Menipis' : 'Aman';
-            ws_data.push([
-                o.kodeObat || '',
-                o.namaObat || '',
-                o.kategori || '',
-                o.satuan || '',
-                o.hpp || 0,
-                o.hargaJual || 0,
-                o.stok || 0,
-                o.stokMinimum || 0,
-                o.expDate || '',
-                statusStok
-            ]);
-        });
-
-        var ws = XLSX.utils.aoa_to_sheet(ws_data);
-        ws['!cols'] = [{wch: 12}, {wch: 30}, {wch: 12}, {wch: 10}, {wch: 12}, {wch: 15}, {wch: 10}, {wch: 15}, {wch: 20}, {wch: 14}];
-        var wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data Obat");
-
-        var today = new Date().toISOString().slice(0, 10);
-        XLSX.writeFile(wb, "Ekspor_Obat_Aulia_" + today + ".xlsx");
-
-        Utils.toast('Berhasil mengekspor ' + list.length + ' data obat!', 'success');
     },
 
     handleFileUpload: function(event) {

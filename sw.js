@@ -3,15 +3,19 @@
  * Strategi: Cache shell statis, skip Firebase/CDN dynamic calls.
  */
 
-var CACHE_NAME = 'aulia-v11'; // FIX: dinaikkan - fitur baru "Tindakan Klinik" bisa ditambahkan langsung di transaksi Obat Bebas/Resep Luar tanpa perlu resep dokter
+var CACHE_NAME = 'aulia-v13'; // FIX: bump cache — SatuSehat dipindah ke Menu Utama (terbuka semua akun), perbaikan rules & ICD-10 parsing
 
 var SHELL_URLS = [
     './',
     './index.html',
+    './display.html',
     './manifest.json',
     './css/style.css',
+    './css/tailwind.css',
+    './css/win98.css',
     './icon-192.png',
     './icon-512.png',
+    './logostruk.png',
     './js/app.js',
     './js/auth.js',
     './js/dashboard.js'

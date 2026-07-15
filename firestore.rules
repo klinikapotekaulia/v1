@@ -37,15 +37,14 @@ service cloud.firestore {
     function hasRole(roleList) {
       return isSignedIn() 
         && exists(/databases/$(database)/documents/users/$(request.auth.uid)) 
-        && (!('status' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data) || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'aktif')
-        && ('role' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data) 
-        && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in roleList);
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('status', 'aktif') == 'aktif'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in roleList;
     }
 
     function isActive() {
       return isSignedIn() 
         && exists(/databases/$(database)/documents/users/$(request.auth.uid)) 
-        && (!('status' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data) || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'aktif');
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('status', 'aktif') == 'aktif';
     }
 
     function isAdminKeuangan() {
@@ -177,6 +176,14 @@ service cloud.firestore {
     match /pasien/{id} {
       allow read: if isKlinikStaff() || isApotekStaff();
       allow create, update: if isKlinikStaff();
+      // BARU: modul SatuSehat kini terbuka untuk semua akun (js/pengaturan/satusehat.js
+      // tab "Validasi NIK & Pasien"), termasuk staf apotek yang sebelumnya tidak
+      // termasuk isKlinikStaff() dan gagal PERMISSION_DENIED saat mengisi/mengunci
+      // NIK pasien. Apotek HANYA boleh mengubah field terkait validasi SatuSehat,
+      // bukan data medis/pribadi pasien lainnya.
+      allow update: if isApotekStaff()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['nik', 'tanggalLahir', 'satusehatId', 'satusehatSyncAt']);
       allow delete: if isAdminKeuangan();
     }
 
@@ -187,6 +194,13 @@ service cloud.firestore {
       allow update: if isApotekStaff()
                     && request.resource.data.diff(resource.data).affectedKeys()
                          .hasOnly(['statusResep']);
+      // BARU: modul SatuSehat kini terbuka untuk semua akun (tab "Sync Kunjungan").
+      // Siapa pun staff aktif boleh mengirim/melepas link Encounter SatuSehat, tapi
+      // HANYA field terkait SatuSehat -- tidak bisa mengubah data medis rekam medis
+      // itu sendiri (keluhan/diagnosa tetap eksklusif milik dokter/admin di atas).
+      allow update: if isAnyStaff()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['satusehatEncounterId', 'satusehatConditionId', 'satusehatSyncAt']);
       allow delete: if isAdminKeuangan();
     }
 
@@ -292,19 +306,16 @@ service cloud.firestore {
     // PENGATURAN (settings/master data)
     // ------------------------------------------------------------
     match /pengaturan/antrianDisplay           { allow read: if true; allow write: if isAnyStaff(); }
-    // BUGFIX: js/pengaturan/displayAntrian.js (halaman Pengaturan > Display Antrian) baca/tulis
-    // dokumen INI (logo TV, running text, link YouTube, tema) -- beda dgn 'antrianDisplay' di atas
-    // (yg isinya data nomor antrian, dipakai js/klinik/antrian.js). Karena belum terdaftar, kena
-    // default-deny -> permission-denied -> "Gagal memuat pengaturan: ...". Read harus publik (if
-    // true) krn display.html (layar TV ruang tunggu) baca dokumen ini TANPA login sama sekali.
-    match /pengaturan/antrianDisplaySettings   { allow read: if true; allow write: if isAdminKeuangan(); }
+    match /pengaturan/antrianDisplaySettings   { allow read: if true; allow write: if isAnyStaff(); }
     match /pengaturan/profil                   { allow read: if isAnyStaff(); allow write: if isAdminKeuangan(); }
-    // BARU: status ringkas Laporan Keuangan Bayangan bulan berjalan (laba bersih bayangan +
-    // proyeksi akhir bulan), ditulis otomatis oleh js/keuangan/laporanKeuangan.js tiap kali
-    // admin/keuangan membuka laporan bulan berjalan. Dibaca oleh sidebar (js/app.js) utk badge
-    // titik merah/hijau di menu "Lap. Keuangan" -> read cukup isAdminKeuangan() krn cuma role
-    // itu yg bisa lihat menunya (lihat roleAccess di js/app.js).
-    match /pengaturan/statusBayangan           { allow read, write: if isAdminKeuangan(); }
+    // BUGFIX PENTING: dokumen ini sebelumnya TIDAK punya rule sama sekali, jadi
+    // selalu kena default-deny di paling bawah file ini -> js/pengaturan/satusehat.js
+    // (db.collection('pengaturan').doc('satusehatSettings')) SELALU gagal baca/tulis
+    // walau sudah admin sekalipun. Modul SatuSehat sekarang terbuka untuk semua akun
+    // (lihat js/app.js menuStructure.utama), jadi baca diizinkan untuk semua staff
+    // aktif (supaya status koneksi & ringkasan bisa tampil), tapi kredensial
+    // (Client ID/Secret) hanya boleh ditulis oleh admin/keuangan.
+    match /pengaturan/satusehatSettings        { allow read: if isAnyStaff(); allow write: if isAdminKeuangan(); }
     match /pengaturanGaji/{id}                 { allow read, write: if isAdminKeuangan(); }
     // BUGFIX: dibaca oleh js/apotek/transaksi.js (Promise.all) untuk hitung
     // margin resep & racik obat saat transaksi -> sebelumnya read dibatasi
@@ -321,6 +332,21 @@ service cloud.firestore {
     // append-only — tidak bisa diubah/dihapus setelah dibuat.
     match /pengaturanPembagianHistory/{id}     { allow read: if isAdminKeuangan(); allow create: if isAdminKeuangan(); allow update, delete: if false; }
     match /masterTindakan/{id}                 { allow read: if isAnyStaff(); allow write: if isAdminKeuangan(); }
+
+    // ------------------------------------------------------------
+    // SATUSEHAT LOGS — riwayat aktivitas sinkronisasi ke Kemenkes
+    // (js/pengaturan/satusehat.js). Dulunya disimpan di localStorage
+    // per-browser; sekarang di Firestore supaya semua akun & perangkat
+    // melihat riwayat yang sama. Semua staff aktif boleh baca & menambah
+    // (create-only, mencatat aksinya sendiri via addLog()); hanya
+    // admin/keuangan yang boleh membersihkan riwayat (clearSimulatedLogs()).
+    // ------------------------------------------------------------
+    match /satusehatLogs/{id} {
+      allow read: if isAnyStaff();
+      allow create: if isAnyStaff();
+      allow update: if false;
+      allow delete: if isAdminKeuangan();
+    }
 
     // ------------------------------------------------------------
     // DEFAULT DENY — apapun koleksi yang tidak terdaftar eksplisit

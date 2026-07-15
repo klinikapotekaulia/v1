@@ -47,6 +47,7 @@ window.AppPengaturanDisplayAntrian = {
             if (self.data.tampilkanVideo === undefined) self.data.tampilkanVideo = false;
             if (self.data.defaultTema === undefined) self.data.defaultTema = 'night';
             if (self.data.logoBase64 === undefined) self.data.logoBase64 = '';
+            if (self.data.bahasa === undefined) self.data.bahasa = 'id';
             self.renderForm();
         }).catch(function(err) {
             Utils.toast('Gagal memuat pengaturan: ' + err.message, 'error');
@@ -97,10 +98,21 @@ window.AppPengaturanDisplayAntrian = {
         html += '  <div class="border-t border-slate-100 dark:border-slate-700 pt-5">';
         html += '    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Tema Default Saat TV Dibuka</label>';
         html += '    <div class="flex gap-4">';
-        html += '      <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300"><input type="radio" name="dp-tema" value="night" ' + (d.defaultTema === 'night' ? 'checked' : '') + '> Malam (Gelap)</label>';
-        html += '      <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300"><input type="radio" name="dp-tema" value="light" ' + (d.defaultTema === 'light' ? 'checked' : '') + '> Terang (Light)</label>';
+        html += '      <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300"><input type="radio" name="dp-tema" value="night" ' + (d.defaultTema === 'night' ? 'checked' : '') + '> Hijau Gelap (Emerald Night)</label>';
+        html += '      <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300"><input type="radio" name="dp-tema" value="light" ' + (d.defaultTema === 'light' ? 'checked' : '') + '> Hijau Terang (Clean Pharmacy)</label>';
         html += '    </div>';
         html += '    <p class="text-[11px] text-slate-400 mt-1">Pengguna tetap bisa ganti tema langsung dari tombol di layar TV; ini hanya tema awal saat halaman pertama dibuka.</p>';
+        html += '  </div>';
+        
+        // Bahasa Display & Pengeras Suara
+        html += '  <div class="border-t border-slate-100 dark:border-slate-700 pt-5">';
+        html += '    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Bahasa Tampilan & Pengeras Suara TV</label>';
+        html += '    <div class="flex flex-col sm:flex-row gap-4">';
+        html += '      <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300"><input type="radio" name="dp-bahasa" value="id" ' + (d.bahasa === 'id' || !d.bahasa ? 'checked' : '') + '> Bahasa Indonesia</label>';
+        html += '      <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300"><input type="radio" name="dp-bahasa" value="en" ' + (d.bahasa === 'en' ? 'checked' : '') + '> Bahasa Inggris (English)</label>';
+        html += '      <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300"><input type="radio" name="dp-bahasa" value="su" ' + (d.bahasa === 'su' ? 'checked' : '') + '> Bahasa Sunda</label>';
+        html += '    </div>';
+        html += '    <p class="text-[11px] text-slate-400 mt-1">Pilih bahasa untuk tulisan display TV dan pengumuman suara pengeras suara antrian.</p>';
         html += '  </div>';
 
         html += '  <div class="border-t border-slate-100 dark:border-slate-700 pt-5 flex justify-end">';
@@ -151,6 +163,9 @@ window.AppPengaturanDisplayAntrian = {
         var temaEl = document.querySelector('input[name="dp-tema"]:checked');
         this.data.defaultTema = temaEl ? temaEl.value : 'night';
 
+        var bahasaEl = document.querySelector('input[name="dp-bahasa"]:checked');
+        this.data.bahasa = bahasaEl ? bahasaEl.value : 'id';
+
         db.collection('pengaturan').doc('antrianDisplaySettings').set({
             logoBase64: this.data.logoBase64 || '',
             runningLabel: this.data.runningLabel,
@@ -158,9 +173,13 @@ window.AppPengaturanDisplayAntrian = {
             youtubeLink: this.data.youtubeLink,
             tampilkanVideo: this.data.tampilkanVideo,
             defaultTema: this.data.defaultTema,
+            bahasa: this.data.bahasa,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             updatedBy: window.currentUserName || 'Admin'
         }, { merge: true }).then(function() {
+            if (window.AppKlinikAntrian) {
+                window.AppKlinikAntrian.bahasa = self.data.bahasa;
+            }
             Utils.toast('Pengaturan display berhasil disimpan! Perubahan langsung tampil di TV.', 'success');
         }).catch(function(err) {
             Utils.toast('Gagal menyimpan: ' + err.message, 'error');

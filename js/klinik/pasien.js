@@ -126,6 +126,11 @@ window.AppKlinikPasien = {
         html += '</div>';
 
         html += '<div class="grid grid-cols-2 gap-4">';
+        html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">NIK (No. KTP)</label><input type="text" id="fp-nik" value="' + Utils.escapeHtml(p.nik || '') + '" maxlength="16" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm" placeholder="16 digit NIK"></div>';
+        html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tanggal Lahir</label><input type="date" id="fp-dob" value="' + Utils.escapeHtml(p.tanggalLahir || '') + '" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm"></div>';
+        html += '</div>';
+
+        html += '<div class="grid grid-cols-2 gap-4">';
         html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Jenis Kelamin</label><select id="fp-jk" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm"><option value="L"' + (p.jenisKelamin==='L'?' selected':'') + '>Laki-laki (L)</option><option value="P"' + (p.jenisKelamin==='P'?' selected':'') + '>Perempuan (P)</option></select></div>';
         html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Usia (tahun)</label><input type="number" id="fp-usia" min="0" max="150" value="' + (p.usia != null ? p.usia : '') + '" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm" placeholder="Contoh: 35"></div>';
         html += '</div>';
@@ -164,6 +169,8 @@ window.AppKlinikPasien = {
         var obj = {
             nomorRM: document.getElementById('fp-rm').value.trim(),
             nama: document.getElementById('fp-nama').value.trim(),
+            nik: document.getElementById('fp-nik').value.trim(),
+            tanggalLahir: document.getElementById('fp-dob').value,
             jenisKelamin: document.getElementById('fp-jk').value,
             usia: usiaVal !== '' ? parseInt(usiaVal, 10) : null,
             noTelepon: document.getElementById('fp-telp').value.trim(),

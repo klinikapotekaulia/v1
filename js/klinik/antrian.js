@@ -22,6 +22,7 @@ window.AppKlinikAntrian = {
     data: [],
     pasienList: [],
     dokterList: [],
+    bahasa: 'id',
 
     render: function() {
         var html = '<div class="page-enter max-w-4xl">';
@@ -44,15 +45,22 @@ window.AppKlinikAntrian = {
         // TAMBAHAN (permintaan user): dipakai khusus tampilan Antrian akun Dokter, untuk tahu
         // antrian mana yang RM-nya sudah selesai diproses resepnya di Apotek (statusResep).
         var pRekam = db.collection('rekamMedis').where('tanggal', '==', today).get();
+        var pSettings = db.collection('pengaturan').doc('antrianDisplaySettings').get();
 
         if ('speechSynthesis' in window) {
             window.speechSynthesis.getVoices();
         }
 
-        Promise.all([pAntrian, pPasien, pDokter, pRekam]).then(function(results) {
+        Promise.all([pAntrian, pPasien, pDokter, pRekam, pSettings]).then(function(results) {
             // Parse Antrian
             AppKlinikAntrian.data = [];
             results[0].forEach(function(doc) { var d = doc.data(); d.id = doc.id; AppKlinikAntrian.data.push(d); });
+
+            // Simpan bahasa dari pengaturan display antrian
+            AppKlinikAntrian.bahasa = 'id';
+            if (results[4] && results[4].exists) {
+                AppKlinikAntrian.bahasa = results[4].data().bahasa || 'id';
+            }
 
             // URUTKAN MANUAL PAKAI JAVASCRIPT (Berdasarkan waktuDaftar)
             AppKlinikAntrian.data.sort(function(a, b) {
@@ -391,8 +399,9 @@ window.AppKlinikAntrian = {
             current: null,
             next: null,
             riwayat: [],
-            tanggal: getLocalDateStr()
-        }, { merge: true }).then(function() {
+            tanggal: getLocalDateStr(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }).then(function() {
             Utils.toast('Tampilan display berhasil dikosongkan.', 'success');
         }).catch(function(err) {
             Utils.toast('Gagal reset display: ' + err.message, 'error');
@@ -461,23 +470,41 @@ window.AppKlinikAntrian = {
         // Hentikan suara yang sedang aktif agar tidak tumpang tindih
         window.speechSynthesis.cancel();
 
+        var lang = AppKlinikAntrian.bahasa || 'id';
+
         // Bersihkan penyebutan gelar agar pelafalan natural
         var dokterLafal = namaDokter.replace(/dr\.\s*/gi, 'Dokter ').trim();
-        var teks = "Nomor antrian " + nomorAntrian + ", atas nama " + namaPasien + ", silakan menuju ke ruang " + dokterLafal;
+        
+        var teks = "";
+        if (lang === 'en') {
+            teks = "Queue number " + nomorAntrian + ", for " + namaPasien + ", please proceed to room " + dokterLafal;
+        } else if (lang === 'su') {
+            teks = "Nomer antrean " + nomorAntrian + ", asmana " + namaPasien + ", mangga ka rohang " + dokterLafal;
+        } else {
+            teks = "Nomor antrian " + nomorAntrian + ", atas nama " + namaPasien + ", silakan menuju ke ruang " + dokterLafal;
+        }
 
         var utterance = new SpeechSynthesisUtterance(teks);
-        utterance.lang = 'id-ID';
+        
+        if (lang === 'en') {
+            utterance.lang = 'en-US';
+        } else {
+            utterance.lang = 'id-ID'; // su dan id menggunakan suara Indonesia agar pelafalan natural
+        }
         utterance.rate = 0.85; // Sedikit diperlambat agar jelas terdengar di speaker klinik
         utterance.pitch = 1.0;
 
-        // Cari suara Bahasa Indonesia
+        // Cari suara yang sesuai
         var voices = window.speechSynthesis.getVoices();
-        var indonesianVoice = voices.find(function(voice) {
-            return voice.lang.indexOf('id') !== -1 || voice.lang.indexOf('ID') !== -1;
-        });
+        var selectedVoice = null;
+        if (lang === 'en') {
+            selectedVoice = voices.find(function(v) { return v.lang.toLowerCase().indexOf('en') !== -1; });
+        } else {
+            selectedVoice = voices.find(function(v) { return v.lang.toLowerCase().indexOf('id') !== -1; });
+        }
 
-        if (indonesianVoice) {
-            utterance.voice = indonesianVoice;
+        if (selectedVoice) {
+            utterance.voice = selectedVoice;
         }
 
         window.speechSynthesis.speak(utterance);

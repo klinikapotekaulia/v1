@@ -46,10 +46,21 @@ window.AppKeuanganLaporanKeuangan = {
         if (!monthInput) return;
         
         var bulan = monthInput.value; // Format: YYYY-MM
-        this.bulanDipilih = bulan; // dipakai lagi di renderReport() utk Proyeksi & Tren Harian
         var startDate = bulan + '-01';
         var endDate = bulan + '-31';
         this.endDate = endDate; // dipakai lagi di renderReport() utk filter Hutang Jatuh Tempo
+
+        // Helper untuk menangani query error secara mandiri agar tidak menggagalkan seluruh laporan
+        function wrapPromise(promise, fallback) {
+            return promise.catch(function(err) {
+                console.warn('Gagal memuat sebagian data laporan:', err.message || err);
+                return fallback || { 
+                    forEach: function() {}, 
+                    exists: false, 
+                    data: function() { return {}; } 
+                };
+            });
+        }
 
         // Bulan sebelumnya, untuk perbandingan pertumbuhan (FITUR BARU: laporan lebih lengkap)
         var prevParts = bulan.split('-');
@@ -57,33 +68,39 @@ window.AppKeuanganLaporanKeuangan = {
         prevDate.setMonth(prevDate.getMonth() - 1);
         var prevBulan = prevDate.getFullYear() + '-' + String(prevDate.getMonth() + 1).padStart(2, '0');
 
-        // Query semua data di bulan tersebut
-        var pTrx = db.collection('transaksi').where('tanggal', '>=', startDate).where('tanggal', '<=', endDate).get();
-        var pKeluar = db.collection('kasKeluar').where('status', '==', 'approved').where('tanggal', '>=', startDate).where('tanggal', '<=', endDate).get();
+        // Query semua data di bulan tersebut (di-wrap dengan wrapPromise)
+        var pTrx = wrapPromise(db.collection('transaksi').where('tanggal', '>=', startDate).where('tanggal', '<=', endDate).get());
+        var pKeluar = wrapPromise(db.collection('kasKeluar').where('tanggal', '>=', startDate).where('tanggal', '<=', endDate).get());
         // FITUR BARU: pemasukan non-penjualan (mis. selisih retur tukar barang yang DITERIMA dari
         // supplier) sekarang juga otomatis masuk laporan, bukan cuma tersimpan di database saja.
-        var pMasuk = db.collection('kasMasuk').where('status', '==', 'approved').where('tanggal', '>=', startDate).where('tanggal', '<=', endDate).get();
-        var pBeli = db.collection('pembelian').where('tanggal', '>=', startDate).where('tanggal', '<=', endDate).get();
+        var pMasuk = wrapPromise(db.collection('kasMasuk').where('tanggal', '>=', startDate).where('tanggal', '<=', endDate).get());
+        var pBeli = wrapPromise(db.collection('pembelian').where('tanggal', '>=', startDate).where('tanggal', '<=', endDate).get());
         // FIX/FITUR BARU: sertakan beban payroll (sebelumnya tidak ikut dihitung sama sekali di laporan ini,
         // sehingga "Laba Bersih" terlihat lebih besar dari kondisi riil).
-        var pPayroll = db.collection('payrollHistory').where('bulan', '==', bulan).get();
-        var pTrxPrev = db.collection('transaksi').where('tanggal', '>=', prevBulan + '-01').where('tanggal', '<=', prevBulan + '-31').get();
+        var pPayroll = wrapPromise(db.collection('payrollHistory').where('bulan', '==', bulan).get());
+        var pTrxPrev = wrapPromise(db.collection('transaksi').where('tanggal', '>=', prevBulan + '-01').where('tanggal', '<=', prevBulan + '-31').get());
 
         // FITUR BARU (Laporan Bayangan): data tambahan utk hitung Payroll REAL-TIME (akrual, pakai
         // formula sama seperti js/keuangan/payroll.js tapi jendelanya dipatok ke bulan kalender
         // berjalan, BUKAN "sejak terakhir dibayar") + daftar hutang usaha yg masih berjalan (utk
         // difilter jatuh tempo <= akhir bulan ini).
-        var pKaryawan = db.collection('karyawan').where('status', '==', 'aktif').get();
-        var pCfgGaji = db.collection('pengaturanGaji').doc('global').get();
-        var pCfgBagi = db.collection('pengaturanPembagian').doc('global').get();
-        var pHutang = db.collection('pembelian').where('statusPelunasan', '!=', 'lunas').get();
+        var pKaryawan = wrapPromise(db.collection('karyawan').where('status', '==', 'aktif').get());
+        var pCfgGaji = wrapPromise(db.collection('pengaturanGaji').doc('global').get(), { exists: false, data: function() { return { apotek: [], klinik: [] }; } });
+        var pCfgBagi = wrapPromise(db.collection('pengaturanPembagian').doc('global').get(), { exists: false, data: function() { return {}; } });
+        var pHutang = wrapPromise(db.collection('pembelian').where('statusPelunasan', '!=', 'lunas').get());
 
         Promise.all([pTrx, pKeluar, pBeli, pPayroll, pTrxPrev, pMasuk, pKaryawan, pCfgGaji, pCfgBagi, pHutang]).then(function(results) {
             self.dataTransaksi = [];
             results[0].forEach(function(doc) { var d = doc.data(); d.id = doc.id; self.dataTransaksi.push(d); });
 
             self.dataPengeluaran = [];
-            results[1].forEach(function(doc) { var d = doc.data(); d.id = doc.id; self.dataPengeluaran.push(d); });
+            results[1].forEach(function(doc) {
+                var d = doc.data();
+                d.id = doc.id;
+                if (d.status === 'approved') {
+                    self.dataPengeluaran.push(d);
+                }
+            });
 
             self.dataPembelian = [];
             results[2].forEach(function(doc) { var d = doc.data(); d.id = doc.id; self.dataPembelian.push(d); });
@@ -96,7 +113,13 @@ window.AppKeuanganLaporanKeuangan = {
 
             // FITUR BARU: pemasukan non-penjualan (kasMasuk approved), mis. selisih retur tukar barang.
             self.dataPemasukanLain = [];
-            results[5].forEach(function(doc) { var d = doc.data(); d.id = doc.id; self.dataPemasukanLain.push(d); });
+            results[5].forEach(function(doc) {
+                var d = doc.data();
+                d.id = doc.id;
+                if (d.status === 'approved') {
+                    self.dataPemasukanLain.push(d);
+                }
+            });
 
             // FITUR BARU (Laporan Bayangan)
             self.dataKaryawan = [];
@@ -295,111 +318,6 @@ window.AppKeuanganLaporanKeuangan = {
         return { totalGajiPokok: totalGajiPokok, totalTunjanganJasa: totalTunjanganJasa, total: totalGajiPokok + totalTunjanganJasa };
     },
 
-    // Hitung total hari dalam bulan yg dipilih & berapa hari yg "berjalan" (utk run-rate proyeksi):
-    // - Bulan berjalan (sama dgn bulan kalender hari ini)  -> hariBerjalan = tanggal hari ini
-    // - Bulan yg sudah lewat (sudah selesai)                -> hariBerjalan = hariDalamBulan (penuh, proyeksi = aktual)
-    // - Bulan yg belum terjadi (dipilih maju ke depan)      -> hariBerjalan = 0 (proyeksi disembunyikan)
-    _rekapHariBulanIni: function() {
-        var parts = (this.bulanDipilih || '').split('-');
-        var tahunSel = parseInt(parts[0]), bulanSel = parseInt(parts[1]);
-        var hariDalamBulan = new Date(tahunSel, bulanSel, 0).getDate();
-
-        var todayObj = new Date();
-        var todayBulanStr = todayObj.getFullYear() + '-' + String(todayObj.getMonth() + 1).padStart(2, '0');
-
-        var hariBerjalan;
-        if (this.bulanDipilih === todayBulanStr) {
-            hariBerjalan = todayObj.getDate();
-        } else if (this.bulanDipilih < todayBulanStr) {
-            hariBerjalan = hariDalamBulan;
-        } else {
-            hariBerjalan = 0;
-        }
-        return { hariDalamBulan: hariDalamBulan, hariBerjalan: hariBerjalan };
-    },
-
-    // Rangkai series kumulatif "Laba Bersih Bayangan" per hari (hari 1 s/d hariBerjalan), utk mini
-    // grafik tren. Laba Kotor & Pemasukan Lain dihitung PRESIS dari transaksi/kasMasuk per tanggal;
-    // beban akrual (payroll realtime + operasional + hutang jatuh tempo) diinterpolasi linear (lihat
-    // catatan di renderReport()). Juga mendeteksi hari pertama nilai kumulatif >= 0 ("hari breakeven").
-    _hitungTrenHarian: function(hariBerjalan, totalBebanAkrualFinal, totalPemasukanLainFinal) {
-        if (!hariBerjalan || hariBerjalan <= 0) return { series: [], hariBreakeven: null };
-
-        var bebanPerHari = totalBebanAkrualFinal / hariBerjalan;
-
-        // Pre-hitung laba kotor & pemasukan lain PER HARI (bukan kumulatif dulu)
-        var labaKotorPerHari = {};
-        this.dataTransaksi.forEach(function(t) {
-            if (!t.tanggal) return;
-            var tgl = parseInt(t.tanggal.split('-')[2], 10);
-            var omzetObat = t.items ? t.items.reduce(function(s, i) { return s + (i.jumlah * i.hargaJual); }, 0) : 0;
-            var hppObat = t.items ? t.items.reduce(function(s, i) { return s + (i.jumlah * (i.hargaBeli || 0)); }, 0) : 0;
-            var laba = (omzetObat - hppObat) + (t.totalRacik || 0) + (t.totalTindakan || 0) + (t.jasaResep || 0);
-            labaKotorPerHari[tgl] = (labaKotorPerHari[tgl] || 0) + laba;
-        });
-        var pemasukanLainPerHari = {};
-        this.dataPemasukanLain.forEach(function(m) {
-            if (!m.tanggal) return;
-            var tgl = parseInt(m.tanggal.split('-')[2], 10);
-            pemasukanLainPerHari[tgl] = (pemasukanLainPerHari[tgl] || 0) + (m.jumlah || 0);
-        });
-
-        var series = [];
-        var kumulatif = 0;
-        var hariBreakeven = null;
-        for (var d = 1; d <= hariBerjalan; d++) {
-            kumulatif += (labaKotorPerHari[d] || 0) + (pemasukanLainPerHari[d] || 0) - bebanPerHari;
-            series.push({ hari: d, nilai: kumulatif });
-            if (hariBreakeven === null && kumulatif >= 0) hariBreakeven = d;
-        }
-        return { series: series, hariBreakeven: hariBreakeven };
-    },
-
-    // Bikin SVG line-chart sederhana (vanilla, tanpa library) dari series {hari, nilai}.
-    _svgTrenHarian: function(tren) {
-        var series = tren.series;
-        if (!series || series.length === 0) {
-            return '<p class="text-xs text-slate-400 text-center py-8">Belum ada data hari berjalan untuk digambar.</p>';
-        }
-        var W = 600, H = 180, padX = 10, padY = 16;
-        var nilaiArr = series.map(function(p) { return p.nilai; });
-        var minV = Math.min(0, Math.min.apply(null, nilaiArr));
-        var maxV = Math.max(0, Math.max.apply(null, nilaiArr));
-        if (minV === maxV) { minV -= 1; maxV += 1; } // hindari divide-by-zero kalau semua nilai sama
-
-        var xForHari = function(h) {
-            if (series.length === 1) return padX;
-            return padX + ((h - series[0].hari) / (series[series.length - 1].hari - series[0].hari)) * (W - padX * 2);
-        };
-        var yForNilai = function(v) {
-            return H - padY - ((v - minV) / (maxV - minV)) * (H - padY * 2);
-        };
-
-        var pathD = series.map(function(p, i) {
-            return (i === 0 ? 'M' : 'L') + xForHari(p.hari).toFixed(1) + ',' + yForNilai(p.nilai).toFixed(1);
-        }).join(' ');
-
-        var yZero = yForNilai(0);
-        var last = series[series.length - 1];
-        var lastColor = last.nilai >= 0 ? '#10b981' : '#ef4444';
-
-        var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="w-full h-40" preserveAspectRatio="none">';
-        // garis nol (breakeven line)
-        svg += '<line x1="' + padX + '" y1="' + yZero.toFixed(1) + '" x2="' + (W - padX) + '" y2="' + yZero.toFixed(1) + '" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,4" />';
-        svg += '<path d="' + pathD + '" fill="none" stroke="' + lastColor + '" stroke-width="2.5" />';
-        // titik di hari terakhir
-        svg += '<circle cx="' + xForHari(last.hari).toFixed(1) + '" cy="' + yForNilai(last.nilai).toFixed(1) + '" r="4" fill="' + lastColor + '" />';
-        // marker breakeven (kalau ada & bukan hari pertama)
-        if (tren.hariBreakeven && tren.hariBreakeven > series[0].hari) {
-            var titikBreak = series.find(function(p) { return p.hari === tren.hariBreakeven; });
-            if (titikBreak) {
-                svg += '<circle cx="' + xForHari(titikBreak.hari).toFixed(1) + '" cy="' + yForNilai(titikBreak.nilai).toFixed(1) + '" r="4" fill="#0ea5e9" stroke="white" stroke-width="1.5" />';
-            }
-        }
-        svg += '</svg>';
-        return svg;
-    },
-
     renderReport: function() {
         var container = document.getElementById('laporan-content');
         var self = this;
@@ -490,39 +408,6 @@ window.AppKeuanganLaporanKeuangan = {
         var labaBersihBayangan = totalLabaKotor - totalOperasional - payrollRealtime.total + totalPemasukanLain - hutangJatuhTempoBulanIni;
         var selisihVsResmi = labaBersihBayangan - labaBersih; // kewajiban yg blm cair tapi sudah kehitung di sini
 
-        // ============================================================
-        // FITUR BARU: PROYEKSI AKHIR BULAN (run-rate)
-        // ============================================================
-        // Komponen yg BERSKALA dgn aktivitas (Laba Kotor, Tunjangan&Jasa realtime, Biaya
-        // Operasional, Pemasukan Lain) diproyeksikan pakai run-rate harian: (nilai s/d hari ini /
-        // hari berjalan) x total hari sebulan. Komponen yg SUDAH FIX untuk sebulan penuh (Gaji
-        // Pokok — nilai flat, bukan per-hari; Hutang Jatuh Tempo — sudah pasti sesuai faktur riil)
-        // TIDAK ikut di-scale, karena nilainya memang tidak bertambah sebanding jumlah hari.
-        var rekapTgl = this._rekapHariBulanIni();
-        var hariDalamBulan = rekapTgl.hariDalamBulan;
-        var hariBerjalan = rekapTgl.hariBerjalan;
-
-        var proyeksiLabaBersihBayangan = null;
-        if (hariBerjalan > 0) {
-            var faktorProyeksi = hariDalamBulan / hariBerjalan;
-            var proyeksiLabaKotor = totalLabaKotor * faktorProyeksi;
-            var proyeksiTunjanganJasa = payrollRealtime.totalTunjanganJasa * faktorProyeksi;
-            var proyeksiOperasional = totalOperasional * faktorProyeksi;
-            var proyeksiPemasukanLain = totalPemasukanLain * faktorProyeksi;
-            proyeksiLabaBersihBayangan = proyeksiLabaKotor - payrollRealtime.totalGajiPokok - proyeksiTunjanganJasa - proyeksiOperasional + proyeksiPemasukanLain - hutangJatuhTempoBulanIni;
-        }
-
-        // ============================================================
-        // FITUR BARU: TREN HARIAN (mini grafik kumulatif s/d hari ini)
-        // ============================================================
-        // CATATAN: demi kecepatan (tidak menjalankan ulang formula payroll & mengambil data
-        // per-hari), beban akrual (payroll realtime + operasional + hutang jatuh tempo) di grafik
-        // ini diinterpolasi LINEAR sepanjang hari berjalan. Angka akhir (hari terakhir) tetap
-        // sama persis dgn labaBersihBayangan di kartu utama; hari-hari sebelumnya adalah estimasi
-        // visual untuk melihat TREN/pola, bukan angka akrual presisi per-hari.
-        var totalBebanAkrualFinal = payrollRealtime.total + totalOperasional + hutangJatuhTempoBulanIni;
-        var trenHarian = this._hitungTrenHarian(hariBerjalan, totalBebanAkrualFinal, totalPemasukanLain);
-
         // Simpan ringkasan supaya bisa dipakai fungsi export tanpa hitung ulang
         this.summary = {
             totalOmzet: totalOmzet, totalHPP: totalHPP, totalLabaKotor: totalLabaKotor,
@@ -540,27 +425,8 @@ window.AppKeuanganLaporanKeuangan = {
             hutangJatuhTempoBulanIni: hutangJatuhTempoBulanIni,
             daftarHutangJatuhTempo: daftarHutangJatuhTempo,
             labaBersihBayangan: labaBersihBayangan,
-            selisihVsResmi: selisihVsResmi,
-            // FITUR BARU: Proyeksi Akhir Bulan & Tren Harian
-            hariBerjalan: hariBerjalan, hariDalamBulan: hariDalamBulan,
-            proyeksiLabaBersihBayangan: proyeksiLabaBersihBayangan
+            selisihVsResmi: selisihVsResmi
         };
-
-        // FITUR BARU: simpan status ringkas ke Firestore supaya sidebar (js/app.js) bisa
-        // menampilkan badge titik merah/hijau di menu "Lap. Keuangan" TANPA harus menjalankan
-        // ulang seluruh kalkulasi ini di setiap halaman. Hanya ditulis kalau bulan yg sedang
-        // dilihat adalah BULAN KALENDER BERJALAN (supaya badge tidak menampilkan status bulan lama).
-        var todayObjBadge = new Date();
-        var todayBulanBadge = todayObjBadge.getFullYear() + '-' + String(todayObjBadge.getMonth() + 1).padStart(2, '0');
-        if (this.bulanDipilih === todayBulanBadge) {
-            db.collection('pengaturan').doc('statusBayangan').set({
-                bulan: this.bulanDipilih,
-                labaBersihBayangan: labaBersihBayangan,
-                proyeksiLabaBersihBayangan: proyeksiLabaBersihBayangan,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            }).catch(function(err) { console.error('Gagal simpan status badge:', err); });
-        }
-
 
         // 3. RENDER UI
         var html = '<div class="flex justify-end mb-4">';
@@ -663,40 +529,6 @@ window.AppKeuanganLaporanKeuangan = {
         html += '  </div>';
         html += '</div>';
 
-        // ============================================================
-        // Kartu 5: PROYEKSI AKHIR BULAN + TREN HARIAN
-        // ============================================================
-        html += '<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 mb-6">';
-        html += '  <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2 mb-1"><i data-lucide="trending-up" class="w-5 h-5 text-primary-500"></i> Proyeksi Akhir Bulan & Tren Harian</h3>';
-
-        if (hariBerjalan <= 0) {
-            html += '  <p class="text-xs text-slate-400 py-4">Bulan ini belum berjalan, proyeksi belum bisa dihitung.</p>';
-        } else {
-            var proyeksiUntung = proyeksiLabaBersihBayangan >= 0;
-            html += '  <p class="text-xs text-slate-400 dark:text-slate-500 mb-4">Estimasi hasil akhir bulan kalau ritme ' + hariBerjalan + ' hari terakhir berlanjut sampai tanggal ' + hariDalamBulan + '. Garis putus-putus = titik impas (Rp 0). Titik biru = hari pertama posisi sudah &ge; 0.</p>';
-
-            html += '  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">';
-            html += '    <div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">';
-            html += '      <p class="text-xs text-slate-400">Posisi Hari Ini (hari ke-' + hariBerjalan + ')</p>';
-            html += '      <p class="font-bold ' + (isUntung ? 'text-emerald-600' : 'text-red-600') + '">' + Utils.formatRupiah(labaBersihBayangan) + '</p>';
-            html += '    </div>';
-            html += '    <div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">';
-            html += '      <p class="text-xs text-slate-400">Proyeksi s/d Akhir Bulan (hari ke-' + hariDalamBulan + ')</p>';
-            html += '      <p class="font-bold ' + (proyeksiUntung ? 'text-emerald-600' : 'text-red-600') + '">' + Utils.formatRupiah(proyeksiLabaBersihBayangan) + '</p>';
-            html += '    </div>';
-            html += '    <div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">';
-            html += '      <p class="text-xs text-slate-400">Hari Breakeven Bulan Ini</p>';
-            html += '      <p class="font-bold text-gray-700 dark:text-slate-300">' + (trenHarian.hariBreakeven ? 'Tanggal ' + trenHarian.hariBreakeven : (isUntung ? 'Sejak awal bulan' : 'Belum tercapai')) + '</p>';
-            html += '    </div>';
-            html += '  </div>';
-
-            html += '  <div class="border border-slate-100 dark:border-slate-700 rounded-lg p-2">';
-            html += this._svgTrenHarian(trenHarian);
-            html += '  </div>';
-            html += '  <p class="text-[11px] text-slate-400 mt-2">*Garis tren adalah estimasi visual (beban payroll & operasional diinterpolasi rata harian), bukan angka akrual presisi per-hari. Angka hari terakhir = sama persis dgn "Laba Bersih Bayangan" di kartu atas.</p>';
-        }
-        html += '</div>';
-
         // Tabel Rincian Transaksi
         html += '<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">';
         html += '  <div class="p-4 border-b border-slate-200 dark:border-slate-700"><h3 class="font-semibold text-gray-800 dark:text-white">Rincian Transaksi Penjualan</h3></div>';
@@ -795,10 +627,9 @@ window.AppKeuanganLaporanKeuangan = {
             ['Biaya Operasional Lain', -s.totalOperasional],
             ['Pemasukan Lain', s.totalPemasukanLain || 0],
             ['Hutang Jatuh Tempo Bulan Ini', -s.hutangJatuhTempoBulanIni],
-            ['LABA BERSIH BAYANGAN (hari ke-' + s.hariBerjalan + ' dari ' + s.hariDalamBulan + ')', s.labaBersihBayangan], [],
+            ['LABA BERSIH BAYANGAN', s.labaBersihBayangan], [],
             ['Laba Bersih resmi (basis kas)', s.labaBersih],
-            ['Selisih (kewajiban blm cair)', s.selisihVsResmi], [],
-            ['PROYEKSI AKHIR BULAN (run-rate, hari ke-' + s.hariDalamBulan + ')', s.proyeksiLabaBersihBayangan]
+            ['Selisih (kewajiban blm cair)', s.selisihVsResmi]
         ];
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(bayangan), 'Laporan Bayangan');
 

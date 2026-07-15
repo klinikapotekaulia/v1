@@ -14,17 +14,28 @@
 //    Ganti nilai di bawah dengan konfigurasi project Firebase Anda.
 // ============================================================
 const firebaseConfig = {
-  apiKey: "AIzaSyDXuiTRwHttekv5iy6rk8RJA_pVL25v-U4",
-  authDomain: "klinikapotekaulia-61641.firebaseapp.com",
-  projectId: "klinikapotekaulia-61641",
-  storageBucket: "klinikapotekaulia-61641.firebasestorage.app",
-  messagingSenderId: "857781555251",
-  appId: "1:857781555251:web:33dbb41f292026f9ef9346"
+  apiKey: "AIzaSyCuK8fZRlrU7296U8gmZZ73EdPtODxsNKA",
+  authDomain: "apotek-aulia-d0667.firebaseapp.com",
+  projectId: "apotek-aulia-d0667",
+  storageBucket: "apotek-aulia-d0667.firebasestorage.app",
+  messagingSenderId: "994675867657",
+  appId: "1:994675867657:web:61579147786fc683caf8d8"
 };
 
 firebase.initializeApp(firebaseConfig);
 var db   = firebase.firestore();
 var auth = firebase.auth();
+
+// Konfigurasi cache size menjadi tidak terbatas (unlimited)
+// agar transaksi farmasi dan data obat/pasien tersimpan secara lokal tanpa batas ukuran
+// dan disinkronkan secara otomatis ketika koneksi pulih.
+try {
+  db.settings({
+    cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED
+  });
+} catch (e) {
+  console.warn('Gagal mengatur cacheSizeBytes:', e.message);
+}
 
 // PENTING: aktifkan cache lokal (IndexedDB) Firestore.
 // Tanpa ini, SETIAP kali halaman di-refresh / dibuka ulang, semua listener
@@ -149,6 +160,243 @@ window.Utils = {
 // ============================================================
 window.App = {
 
+    currentLang: localStorage.getItem('app_language') || 'id',
+
+    translations: {
+        id: {
+            // Sections
+            sec_utama: 'Menu Utama',
+            sec_klinik: 'Operasional Klinik',
+            sec_apotek: 'Operasional Apotek',
+            sec_laporan: 'Laporan',
+            sec_manajemen: 'Manajemen',
+            sec_keuangan: 'Keuangan',
+            sec_pengaturan: 'Pengaturan',
+
+            // Menus
+            menu_dashboard: 'Dashboard',
+            menu_chat: 'Diskusi & Chat',
+            menu_antrian: 'Antrian',
+            menu_rekam_medis: 'Rekam Medis',
+            menu_resep: 'Resep',
+            menu_pasien: 'Pasien',
+            menu_transaksi: 'Transaksi',
+            menu_obat: 'Obat & Stok',
+            menu_pembelian: 'Pembelian',
+            menu_stockOpname: 'Stok Opname',
+            menu_notifikasi: 'Notifikasi',
+            menu_retur: 'Retur Obat',
+            menu_hutang: 'Hutang Usaha',
+            menu_pengeluaran: 'Pengeluaran',
+            menu_piutang: 'Piutang Karyawan',
+            menu_penjualanHarian: 'Penjualan Harian',
+            menu_auditTrail: 'Audit Trail',
+            menu_karyawan: 'Karyawan',
+            menu_absensi: 'Absensi',
+            menu_payroll: 'Payroll',
+            menu_laporan_keuangan: 'Lap. Keuangan',
+            menu_rangkuman_bulanan: 'Rangkuman Aktivitas',
+            menu_akuntansi: 'Akuntansi',
+            menu_profil: 'Profil Instansi',
+            menu_pembagian: 'Pembagian Hasil',
+            menu_tindakan: 'Master Tindakan',
+            menu_gaji: 'Pengaturan Gaji',
+            menu_users: 'Kelola Users',
+            menu_display_antrian: 'Display Antrian',
+            menu_satusehat: 'SatuSehat Kemenkes',
+
+            // General
+            online: 'Online',
+            offline: 'Offline',
+            memuat: 'Memuat...',
+            statusKoneksi: 'Status Koneksi & Service Worker',
+            konfirmasiLogout: 'Konfirmasi Logout',
+            yakinLogout: 'Apakah Anda yakin ingin keluar dari sistem?',
+            batal: 'Batal',
+            yaKeluar: 'Ya, Keluar',
+            halamanBelumTersedia: 'Halaman Belum Tersedia',
+            gagalMemuat: 'Gagal memuat file:',
+            logoutSukses: 'Berhasil logout.',
+            logoutGagal: 'Gagal logout:',
+            networkKembali: 'Koneksi internet kembali pulih. Sinkronisasi otomatis aktif.',
+            koneksiTerputus: 'Koneksi internet terputus. Bekerja Offline.'
+        },
+        en: {
+            // Sections
+            sec_utama: 'Main Menu',
+            sec_klinik: 'Clinical Operations',
+            sec_apotek: 'Pharmacy Operations',
+            sec_laporan: 'Reports',
+            sec_manajemen: 'Management',
+            sec_keuangan: 'Finance',
+            sec_pengaturan: 'Settings',
+
+            // Menus
+            menu_dashboard: 'Dashboard',
+            menu_chat: 'Discussion & Chat',
+            menu_antrian: 'Queue',
+            menu_rekam_medis: 'Medical Records',
+            menu_resep: 'Prescriptions',
+            menu_pasien: 'Patients',
+            menu_transaksi: 'Transactions',
+            menu_obat: 'Medicine & Stock',
+            menu_pembelian: 'Purchasing',
+            menu_stockOpname: 'Stock Take',
+            menu_notifikasi: 'Notifications',
+            menu_retur: 'Medicine Returns',
+            menu_hutang: 'Accounts Payable',
+            menu_pengeluaran: 'Expenses',
+            menu_piutang: 'Employee Receivables',
+            menu_penjualanHarian: 'Daily Sales',
+            menu_auditTrail: 'Audit Trail',
+            menu_karyawan: 'Employees',
+            menu_absensi: 'Attendance',
+            menu_payroll: 'Payroll',
+            menu_laporan_keuangan: 'Financial Reports',
+            menu_rangkuman_bulanan: 'Activity Summary',
+            menu_akuntansi: 'Accounting',
+            menu_profil: 'Clinic Profile',
+            menu_pembagian: 'Profit Sharing',
+            menu_tindakan: 'Action Master',
+            menu_gaji: 'Salary Settings',
+            menu_users: 'Manage Users',
+            menu_display_antrian: 'Queue Display',
+            menu_satusehat: 'SatuSehat Kemenkes',
+
+            // General
+            online: 'Online',
+            offline: 'Offline',
+            memuat: 'Loading...',
+            statusKoneksi: 'Connection Status & Service Worker',
+            konfirmasiLogout: 'Confirm Logout',
+            yakinLogout: 'Are you sure you want to log out of the system?',
+            batal: 'Cancel',
+            yaKeluar: 'Yes, Log Out',
+            halamanBelumTersedia: 'Page Not Available',
+            gagalMemuat: 'Failed to load file:',
+            logoutSukses: 'Logged out successfully.',
+            logoutGagal: 'Failed to log out:',
+            networkKembali: 'Internet connection restored. Autosync is active.',
+            koneksiTerputus: 'Internet connection lost. Working Offline.'
+        },
+        su: {
+            // Sections
+            sec_utama: 'Menu Utama',
+            sec_klinik: 'Operasional Klinik',
+            sec_apotek: 'Operasional Apoték',
+            sec_laporan: 'Laporan',
+            sec_manajemen: 'Manajemen',
+            sec_keuangan: 'Keuangan',
+            sec_pengaturan: 'Pangaturan',
+
+            // Menus
+            menu_dashboard: 'Dashboard',
+            menu_chat: 'Obrolan & Diskusi',
+            menu_antrian: 'Antrean',
+            menu_rekam_medis: 'Rékam Medis',
+            menu_resep: 'Resép',
+            menu_pasien: 'Pasien',
+            menu_transaksi: 'Transaksi',
+            menu_obat: 'Ubar & Stok',
+            menu_pembelian: 'Pameulian',
+            menu_stockOpname: 'Stok Opname',
+            menu_notifikasi: 'Wara-wara',
+            menu_retur: 'Kunjangan Ubar',
+            menu_hutang: 'Hutang Usaha',
+            menu_pengeluaran: 'Pangaluaran',
+            menu_piutang: 'Piutang Karyawan',
+            menu_penjualanHarian: 'Payuan Sapopoé',
+            menu_auditTrail: 'Lacak Audit',
+            menu_karyawan: 'Pagawe',
+            menu_absensi: 'Absénsi',
+            menu_payroll: 'Gajihan',
+            menu_laporan_keuangan: 'Lap. Keuangan',
+            menu_rangkuman_bulanan: 'Ringkesan Aktivitas',
+            menu_akuntansi: 'Akuntansi',
+            menu_profil: 'Profil Instansi',
+            menu_pembagian: 'Bagi Hasil',
+            menu_tindakan: 'Tindakan Medis',
+            menu_gaji: 'Aturan Gaji',
+            menu_users: 'Atur Pamaké',
+            menu_display_antrian: 'Pintonan Antrean',
+            menu_satusehat: 'SatuSehat Kemenkes',
+
+            // General
+            online: 'Nyambung',
+            offline: 'Pegat',
+            memuat: 'Nuju ngamuat...',
+            statusKoneksi: 'Status Sambungan & Service Worker',
+            konfirmasiLogout: 'Konfirmasi Kaluar',
+            yakinLogout: 'Naha anjeun yakin hoyong kaluar tina sistem?',
+            batal: 'Batal',
+            yaKeluar: 'Muhun, Kaluar',
+            halamanBelumTersedia: 'Kaca Teu Acan Sayogi',
+            gagalMemuat: 'Gagal ngamuat file:',
+            logoutSukses: 'Berhasil kaluar.',
+            logoutGagal: 'Gagal kaluar:',
+            networkKembali: 'Sambungan internet parantos pulih deui. Sinkronisasi otomatis aktip.',
+            koneksiTerputus: 'Sambungan internet pegat. Gawé Offline.'
+        }
+    },
+
+    translate: function(key) {
+        var lang = this.currentLang || 'id';
+        var t = this.translations[lang] || this.translations.id;
+        return t[key] || this.translations.id[key] || key;
+    },
+
+    changeLanguage: function(lang) {
+        this.currentLang = lang;
+        localStorage.setItem('app_language', lang);
+        document.documentElement.setAttribute('lang', lang);
+
+        // Update select element value
+        var select = document.getElementById('lang-select');
+        if (select) select.value = lang;
+
+        // Re-render sidebar to reflect translations
+        if (window.currentRole) {
+            renderSidebar(window.currentRole);
+        }
+
+        // Update current page title
+        var activeBtn = document.querySelector('.nav-btn.text-primary-600, .nav-btn.text-primary-600\\/90');
+        if (!activeBtn) activeBtn = document.querySelector('.nav-btn[class*="text-primary-600"]');
+        if (activeBtn) {
+            var pageId = activeBtn.getAttribute('data-page');
+            var translatedTitle = this.translate('menu_' + pageId.replace(/-/g, '_'));
+            var pageTitleEl = document.getElementById('page-title');
+            if (pageTitleEl) pageTitleEl.textContent = translatedTitle;
+        }
+
+        // Update network status display labels
+        var text = document.getElementById('network-text');
+        if (text) {
+            var isOnline = navigator.onLine;
+            text.textContent = isOnline ? this.translate('online') : this.translate('offline');
+        }
+        var btn = document.getElementById('btn-network-status');
+        if (btn) {
+            btn.setAttribute('title', this.translate('statusKoneksi'));
+            btn.setAttribute('aria-label', this.translate('statusKoneksi'));
+        }
+        
+        var toastMsgs = {
+            id: 'Bahasa diubah ke Bahasa Indonesia.',
+            en: 'Language changed to English.',
+            su: 'Basa dirobah ka Bahasa Sunda.'
+        };
+        Utils.toast(toastMsgs[lang] || toastMsgs.id, 'success');
+    },
+
+    initLanguage: function() {
+        var saved = localStorage.getItem('app_language') || 'id';
+        this.currentLang = saved;
+        document.documentElement.setAttribute('lang', saved);
+        var select = document.getElementById('lang-select');
+        if (select) select.value = saved;
+    },
+
     toggleTheme: function () {
         document.documentElement.classList.toggle('dark');
         var isDark = document.documentElement.classList.contains('dark');
@@ -161,14 +409,14 @@ window.App = {
             '  <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 mb-4">' +
             '    <i data-lucide="log-out" class="w-6 h-6"></i>' +
             '  </div>' +
-            '  <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">Konfirmasi Logout</h3>' +
-            '  <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">Apakah Anda yakin ingin keluar dari sistem?</p>' +
+            '  <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">' + App.translate('konfirmasiLogout') + '</h3>' +
+            '  <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">' + App.translate('yakinLogout') + '</p>' +
             '  <div class="flex justify-center gap-3">' +
             '    <button onclick="Utils.closeModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-lg transition">' +
-            '      Batal' +
+            '      ' + App.translate('batal') +
             '    </button>' +
             '    <button onclick="App.confirmLogout()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition">' +
-            '      Ya, Keluar' +
+            '      ' + App.translate('yaKeluar') +
             '    </button>' +
             '  </div>' +
             '</div>';
@@ -178,8 +426,8 @@ window.App = {
     confirmLogout: function () {
         Utils.closeModal();
         firebase.auth().signOut()
-            .then(function ()  { Utils.toast('Berhasil logout.', 'success'); })
-            .catch(function (e){ Utils.toast('Gagal logout: ' + e.message, 'error'); });
+            .then(function ()  { Utils.toast(App.translate('logoutSukses'), 'success'); })
+            .catch(function (e){ Utils.toast(App.translate('logoutGagal') + ' ' + e.message, 'error'); });
     },
 
     initNetworkStatus: function () {
@@ -199,20 +447,23 @@ window.App = {
 
             if (isOnline) {
                 dot.classList.add('bg-green-500', 'animate-pulse');
-                text.textContent = 'Online';
+                text.textContent = App.translate('online');
                 text.className = 'hidden sm:inline-block text-green-600 dark:text-green-400';
                 btn.classList.add('border-green-200', 'dark:border-green-900/30', 'bg-green-50/50', 'dark:bg-green-950/10');
                 icon.setAttribute('data-lucide', 'wifi');
                 icon.className = 'w-4 h-4 text-green-500 dark:text-green-400';
             } else {
                 dot.classList.add('bg-amber-500');
-                text.textContent = 'Offline';
+                text.textContent = App.translate('offline');
                 text.className = 'hidden sm:inline-block text-amber-600 dark:text-amber-400 font-bold';
                 btn.classList.add('border-amber-200', 'dark:border-amber-900/30', 'bg-amber-50/50', 'dark:bg-amber-950/10', 'animate-pulse');
                 icon.setAttribute('data-lucide', 'wifi-off');
                 icon.className = 'w-4 h-4 text-amber-500 dark:text-amber-400';
-                Utils.toast('Koneksi internet terputus. Bekerja Offline.', 'warning');
+                Utils.toast(App.translate('koneksiTerputus'), 'warning');
             }
+
+            btn.setAttribute('title', App.translate('statusKoneksi'));
+            btn.setAttribute('aria-label', App.translate('statusKoneksi'));
 
             if (window.lucide) {
                 lucide.createIcons({ el: btn });
@@ -221,7 +472,7 @@ window.App = {
 
         window.addEventListener('online', function () {
             updateUI();
-            Utils.toast('Koneksi internet kembali pulih. Sinkronisasi otomatis aktif.', 'success');
+            Utils.toast(App.translate('networkKembali'), 'success');
         });
         window.addEventListener('offline', updateUI);
 
@@ -337,6 +588,13 @@ window.App = {
 var menuStructure = {
     utama: [
         { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard', module: 'dashboard' },
+        // DIPINDAH (permintaan user): SatuSehat Kemenkes sekarang tampil di Menu Utama,
+        // tepat di bawah Dashboard, dan otomatis terbuka untuk SEMUA akun (semua role
+        // sudah punya akses ke section 'utama' di roleAccess di bawah). Halaman itu
+        // sendiri tetap membatasi tab "Konfigurasi Kredensial" hanya untuk admin/keuangan
+        // (lihat js/pengaturan/satusehat.js canConfigure) supaya kredensial Kemenkes
+        // tidak bisa diubah sembarang akun, walau menunya terbuka untuk semua.
+        { id: 'satusehat', label: 'SatuSehat Kemenkes', icon: 'heart-pulse', module: 'pengaturan/satusehat' },
         { id: 'chat',      label: 'Diskusi & Chat', icon: 'message-square', module: 'chat' }
     ],
     klinik: [
@@ -378,6 +636,8 @@ var menuStructure = {
         { id: 'users',     label: 'Kelola Users',     icon: 'user-cog',    module: 'pengaturan/users'     },
         // BARU: pengaturan logo, running text, video YouTube & tema untuk display.html (TV ruang tunggu)
         { id: 'display-antrian', label: 'Display Antrian', icon: 'tv', module: 'pengaturan/displayAntrian' }
+        // CATATAN: SatuSehat Kemenkes dipindah ke Menu Utama (lihat menuStructure.utama)
+        // supaya terbuka untuk semua akun, bukan hanya yang punya akses ke Pengaturan.
     ]
 };
 
@@ -430,29 +690,26 @@ function buildSidebarHtml(role) {
                 ? '<span class="chat-unread-badge hidden ml-auto w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0"></span>'
                 : '';
 
-            // FITUR BARU: titik status Laporan Keuangan Bayangan bulan berjalan (merah = masih
-            // minus, hijau = sudah untung) di menu "Lap. Keuangan". Lihat startLaporanBayanganWatcher().
-            var bayanganBadge = (menu.id === 'laporan-keuangan')
-                ? '<span class="laporan-bayangan-badge hidden ml-auto w-2 h-2 rounded-full flex-shrink-0"></span>'
-                : '';
+            var translatedLabel = App.translate('menu_' + menu.id.replace(/-/g, '_'));
 
             items += '<li>' +
-                '<button onclick="navigateTo(\'' + menu.module + '\', \'' + menu.label + '\')" ' +
+                '<button onclick="navigateTo(\'' + menu.module + '\', \'' + translatedLabel.replace(/'/g, "\\'") + '\')" ' +
                 'class="nav-btn w-full text-left px-3 py-2 rounded-lg text-slate-600 dark:text-slate-300 ' +
                 'hover:bg-primary-50 dark:hover:bg-slate-700 hover:text-primary-600 dark:hover:text-primary-400 ' +
                 'transition-colors flex items-center gap-3" data-page="' + menu.id + '">' +
                 '<i data-lucide="' + menu.icon + '" class="w-4 h-4 flex-shrink-0"></i>' +
-                '<span>' + menu.label + '</span>' +
+                '<span>' + translatedLabel + '</span>' +
                 unreadBadge +
-                bayanganBadge +
                 '</button></li>';
         });
 
         if (!items) return; // bagian ini tidak ada item yang bisa diakses
 
+        var translatedSectionTitle = App.translate('sec_' + section.key);
+
         html += '<div>' +
             '<p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">' +
-            '<i data-lucide="' + section.icon + '" class="w-3.5 h-3.5"></i>' + section.title + '</p>' +
+            '<i data-lucide="' + section.icon + '" class="w-3.5 h-3.5"></i>' + translatedSectionTitle + '</p>' +
             '<ul class="space-y-0.5">' + items + '</ul></div>';
     });
 
@@ -646,51 +903,6 @@ function setChatUnreadBadge(show) {
     });
 }
 
-// FITUR BARU: titik status Laporan Keuangan Bayangan di sidebar. Dibaca dari dokumen
-// pengaturan/statusBayangan yang ditulis otomatis oleh js/keuangan/laporanKeuangan.js
-// setiap kali admin/keuangan membuka laporan bulan berjalan (lihat renderReport() di sana).
-// hijau = sudah untung, merah berkedip = masih minus, disembunyikan kalau datanya bukan
-// utk bulan kalender berjalan (basi/belum pernah dibuka bulan ini).
-var _laporanBayanganListener = null;
-
-function setLaporanBayanganBadge(status) {
-    document.querySelectorAll('.laporan-bayangan-badge').forEach(function (el) {
-        el.classList.remove('hidden', 'bg-emerald-500', 'bg-red-500', 'animate-pulse');
-        if (status === 'untung') {
-            el.classList.add('bg-emerald-500');
-        } else if (status === 'minus') {
-            el.classList.add('bg-red-500', 'animate-pulse');
-        } else {
-            el.classList.add('hidden'); // status null/basi -> sembunyikan, jangan sesatkan
-        }
-    });
-}
-
-function startLaporanBayanganWatcher() {
-    stopLaporanBayanganWatcher();
-
-    _laporanBayanganListener = db.collection('pengaturan').doc('statusBayangan')
-        .onSnapshot(function (doc) {
-            if (!doc.exists) { setLaporanBayanganBadge(null); return; }
-            var data = doc.data();
-            var today = new Date();
-            var todayBulan = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0');
-            if (data.bulan !== todayBulan) { setLaporanBayanganBadge(null); return; } // data basi, jangan ditampilkan
-            setLaporanBayanganBadge(data.labaBersihBayangan >= 0 ? 'untung' : 'minus');
-        }, function (err) {
-            // Wajar kalau role tidak punya akses (bukan admin/keuangan) -> diam saja, tidak perlu di-log sbg error.
-            setLaporanBayanganBadge(null);
-        });
-}
-
-function stopLaporanBayanganWatcher() {
-    if (_laporanBayanganListener) {
-        _laporanBayanganListener();
-        _laporanBayanganListener = null;
-    }
-    setLaporanBayanganBadge(null);
-}
-
 // Dipanggil saat akun membuka halaman Chat (js/chat.js) supaya titik merah
 // langsung hilang, dan disimpan ke Firestore supaya status "sudah dibaca"
 // ini juga berlaku kalau akun tsb login dari perangkat lain.
@@ -699,10 +911,16 @@ window.markChatAsRead = function () {
     setChatUnreadBadge(false);
     var uid = window.currentUid || (firebase.auth().currentUser ? firebase.auth().currentUser.uid : null);
     if (!uid) return;
+    
+    // Simpan di local storage sebagai cadangan
+    try {
+        localStorage.setItem('chatLastRead_' + uid, _chatLastReadMillis.toString());
+    } catch (e) {}
+
     db.collection('chatReadStatus').doc(uid).set({
         lastRead: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true }).catch(function (err) {
-        console.error('Gagal menyimpan status baca chat:', err);
+        console.warn('Gagal menyimpan status baca chat ke cloud (menggunakan penyimpanan lokal):', err.message);
     });
 };
 
@@ -713,19 +931,15 @@ function startChatNotifWatcher() {
     stopChatNotifWatcher();
     _chatFirstSnapshot = true;
 
-    db.collection('chatReadStatus').doc(uid).get().then(function (doc) {
-        if (doc.exists && doc.data().lastRead) {
-            _chatLastReadMillis = doc.data().lastRead.toMillis();
-        } else {
-            // Belum pernah ada catatan baca untuk akun ini (mis. baru pertama kali
-            // fitur ini aktif) -> anggap semua pesan yang sudah ada sekarang sudah
-            // dibaca, supaya tidak muncul badge palsu untuk riwayat lama.
-            _chatLastReadMillis = Date.now();
-            db.collection('chatReadStatus').doc(uid).set({
-                lastRead: firebase.firestore.FieldValue.serverTimestamp()
-            }, { merge: true }).catch(function () {});
+    // Load dari local storage dulu sebagai fallback cepat/aman
+    try {
+        var localLastRead = localStorage.getItem('chatLastRead_' + uid);
+        if (localLastRead) {
+            _chatLastReadMillis = parseInt(localLastRead, 10);
         }
+    } catch (e) {}
 
+    function setupGroupChatListener(uidNow) {
         _chatUnreadListener = db.collection('groupChat')
             .orderBy('createdAt', 'desc')
             .limit(1)
@@ -733,7 +947,7 @@ function startChatNotifWatcher() {
                 if (snapshot.empty) { _chatFirstSnapshot = false; return; }
 
                 var msg = snapshot.docs[0].data();
-                var uidNow = window.currentUid || (firebase.auth().currentUser ? firebase.auth().currentUser.uid : null);
+                var currentUidNow = window.currentUid || (firebase.auth().currentUser ? firebase.auth().currentUser.uid : null);
 
                 // Sedang membuka halaman Chat -> selalu dianggap terbaca, tanpa badge/suara.
                 if (window._chatPageActive) {
@@ -745,7 +959,7 @@ function startChatNotifWatcher() {
                 if (!msg.createdAt) { _chatFirstSnapshot = false; return; } // penulisan lokal, timestamp belum jadi
 
                 var msgMillis    = msg.createdAt.toMillis();
-                var isFromOther  = msg.senderId !== uidNow;
+                var isFromOther  = msg.senderId !== currentUidNow;
                 var isUnread     = isFromOther && (_chatLastReadMillis === null || msgMillis > _chatLastReadMillis);
 
                 setChatUnreadBadge(isUnread);
@@ -758,10 +972,40 @@ function startChatNotifWatcher() {
 
                 _chatFirstSnapshot = false;
             }, function (err) {
-                console.error('Gagal memantau notifikasi chat:', err);
+                console.warn('Gagal memantau notifikasi chat:', err.message);
             });
+    }
+
+    db.collection('chatReadStatus').doc(uid).get().then(function (doc) {
+        if (doc.exists && doc.data().lastRead) {
+            _chatLastReadMillis = doc.data().lastRead.toMillis();
+            try {
+                localStorage.setItem('chatLastRead_' + uid, _chatLastReadMillis.toString());
+            } catch (e) {}
+        } else {
+            // Belum pernah ada catatan baca untuk akun ini -> anggap semua pesan yang sudah ada sekarang sudah
+            // dibaca, supaya tidak muncul badge palsu untuk riwayat lama.
+            if (!_chatLastReadMillis) {
+                _chatLastReadMillis = Date.now();
+                try {
+                    localStorage.setItem('chatLastRead_' + uid, _chatLastReadMillis.toString());
+                } catch (e) {}
+            }
+            db.collection('chatReadStatus').doc(uid).set({
+                lastRead: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true }).catch(function () {});
+        }
+
+        setupGroupChatListener(uid);
     }).catch(function (err) {
-        console.error('Gagal memuat status baca chat:', err);
+        console.warn('Gagal memuat status baca chat dari cloud (menggunakan penyimpanan lokal):', err.message);
+        if (!_chatLastReadMillis) {
+            _chatLastReadMillis = Date.now();
+            try {
+                localStorage.setItem('chatLastRead_' + uid, _chatLastReadMillis.toString());
+            } catch (e) {}
+        }
+        setupGroupChatListener(uid);
     });
 }
 
@@ -777,6 +1021,7 @@ function stopChatNotifWatcher() {
 // 7. BOOT APP (dipanggil setelah user terautentikasi)
 // ============================================================
 function startApp(userRole, userName, userTema) {
+    App.initLanguage();
     window.currentRole     = userRole;
     window.currentUserName = userName;
     var user = firebase.auth().currentUser;
@@ -802,14 +1047,8 @@ function startApp(userRole, userName, userTema) {
     if (userTema === 'win98') document.body.classList.add('theme-win98');
 
     renderSidebar(userRole);
-    navigateTo('dashboard', 'Dashboard');
+    navigateTo('dashboard', App.translate('menu_dashboard'));
     startChatNotifWatcher();
-    // FITUR BARU: badge Laporan Keuangan Bayangan hanya relevan utk role yg bisa buka
-    // menunya (lihat rule pengaturan/statusBayangan & roleAccess) -> selain itu tidak
-    // perlu buka listener sama sekali (hindari permission-denied yg tidak berguna).
-    if (roleSafe === 'admin' || roleSafe === 'keuangan') {
-        startLaporanBayanganWatcher();
-    }
 }
 
 // ============================================================

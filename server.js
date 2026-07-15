@@ -3,23 +3,304 @@ const path = require('path');
 const app = express();
 const PORT = 3000;
 
+// Enable parsing of JSON and URL-encoded request bodies
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 // Serve static files from root directory
 app.use(express.static(__dirname));
+
+// SatuSehat Token Cache to avoid repeatedly hitting Kemenkes servers
+let tokenCache = {};
+
+/**
+ * Retrieves a valid SatuSehat OAuth access token, caching it until expiry.
+ */
+async function getSatuSehatToken(clientId, clientSecret, env) {
+  const cacheKey = `${clientId}_${env}`;
+  const now = Date.now();
+  
+  if (tokenCache[cacheKey] && tokenCache[cacheKey].expiresAt > now) {
+    return tokenCache[cacheKey].accessToken;
+  }
+  
+  const authUrl = env === 'production' 
+    ? 'https://api.kemkes.go.id/oauth2/v1/accesstoken'
+    : 'https://api-sandbox.kemkes.go.id/oauth2/v1/accesstoken';
+    
+  const params = new URLSearchParams();
+  params.append('client_id', clientId);
+  params.append('client_secret', clientSecret);
+  
+  const response = await fetch(authUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: params.toString()
+  });
+  
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Kemenkes Auth Error: ${response.status} - ${errText}`);
+  }
+  
+  const data = await response.json();
+  if (!data.access_token) {
+    throw new Error('No access token returned in Kemenkes response');
+  }
+  
+  // Cache token (expire slightly early by 60 seconds to prevent edge-case race conditions)
+  const expiresInMs = (parseInt(data.expires_in || '3600', 10) - 60) * 1000;
+  tokenCache[cacheKey] = {
+    accessToken: data.access_token,
+    expiresAt: now + expiresInMs
+  };
+  
+  return data.access_token;
+}
 
 // Serve a config endpoint if needed for environment-based Firebase config (optional/fallback)
 app.get('/api/config', (req, res) => {
   res.json({
-    apiKey: process.env.FIREBASE_API_KEY || "AIzaSyDXuiTRwHttekv5iy6rk8RJA_pVL25v-U4",
-    authDomain: process.env.FIREBASE_AUTH_DOMAIN || "klinikapotekaulia-61641.firebaseapp.com",
-    projectId: process.env.FIREBASE_PROJECT_ID || "klinikapotekaulia-61641",
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "klinikapotekaulia-61641.firebasestorage.app",
-    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "857781555251",
-    appId: process.env.FIREBASE_APP_ID || "1:857781555251:web:33dbb41f292026f9ef9346"
+    apiKey: process.env.FIREBASE_API_KEY || "AIzaSyCuK8fZRlrU7296U8gmZZ73EdPtODxsNKA",
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN || "apotek-aulia-d0667.firebaseapp.com",
+    projectId: process.env.FIREBASE_PROJECT_ID || "apotek-aulia-d0667",
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "apotek-aulia-d0667.firebasestorage.app",
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "994675867657",
+    appId: process.env.FIREBASE_APP_ID || "1:994675867657:web:61579147786fc683caf8d8"
   });
+});
+
+// ============================================================
+// SATUSEHAT KEMENKES SECURE PROXY ROUTES (HL7 FHIR Standard)
+// ============================================================
+
+// 1. Test Connection
+app.post('/api/satusehat/test-connection', async (req, res) => {
+  try {
+    const { clientId, clientSecret, env } = req.body;
+    if (!clientId || !clientSecret) {
+      return res.status(400).json({ success: false, message: 'Client ID & Client Secret required' });
+    }
+    const token = await getSatuSehatToken(clientId, clientSecret, env);
+    return res.json({ success: true, message: 'Authenticated successfully with SatuSehat' });
+  } catch (err) {
+    console.error('SatuSehat Test Connection Error:', err.message);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 2. Get Patient FHIR ID by NIK
+app.post('/api/satusehat/patient/by-nik/:nik', async (req, res) => {
+  try {
+    const { nik } = req.params;
+    const { clientId, clientSecret, env } = req.body;
+    
+    if (!clientId || !clientSecret) {
+      return res.status(400).json({ success: false, message: 'Client ID & Client Secret required' });
+    }
+    
+    const token = await getSatuSehatToken(clientId, clientSecret, env);
+    const baseUrl = env === 'production' 
+      ? 'https://api.kemkes.go.id/fhir-r4/v1'
+      : 'https://api-sandbox.kemkes.go.id/fhir-r4/v1';
+       
+    const url = `${baseUrl}/Patient?identifier=https://fhir.kemkes.go.id/id/nik|${nik}`;
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (!response.ok) {
+      const errText = await response.text();
+      return res.status(response.status).json({ success: false, message: `Kemenkes FHIR Error: ${errText}` });
+    }
+    
+    const fhirData = await response.json();
+    if (fhirData.entry && fhirData.entry.length > 0 && fhirData.entry[0].resource) {
+      const patientId = fhirData.entry[0].resource.id;
+      return res.json({ success: true, patientId: patientId, details: fhirData.entry[0].resource });
+    } else {
+      return res.json({ success: false, message: 'NIK tidak ditemukan di database SatuSehat' });
+    }
+  } catch (err) {
+    console.error('SatuSehat Patient Lookup Error:', err.message);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 3. Create FHIR Encounter & Condition
+app.post('/api/satusehat/encounter/create', async (req, res) => {
+  try {
+    const { 
+      clientId, clientSecret, env, 
+      patientId, patientName, doctorName, diagnosa, 
+      organizationId, locationId 
+    } = req.body;
+    
+    if (!clientId || !clientSecret) {
+      return res.status(400).json({ success: false, message: 'Client ID & Client Secret required' });
+    }
+    
+    const token = await getSatuSehatToken(clientId, clientSecret, env);
+    const baseUrl = env === 'production' 
+      ? 'https://api.kemkes.go.id/fhir-r4/v1'
+      : 'https://api-sandbox.kemkes.go.id/fhir-r4/v1';
+       
+    // a. Create FHIR Encounter resource
+    const startTime = new Date().toISOString();
+    const endTime = new Date(Date.now() + 1800000).toISOString(); // +30 mins
+    
+    const encounterPayload = {
+      resourceType: "Encounter",
+      status: "finished",
+      class: {
+        system: "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        code: "AMB",
+        display: "ambulatory"
+      },
+      subject: {
+        reference: `Patient/${patientId}`,
+        display: patientName
+      },
+      period: {
+        start: startTime,
+        end: endTime
+      },
+      location: [
+        {
+          location: {
+            reference: `Location/${locationId || 'f76b88b7-86c0-4286-9dc4-839e94cb02cb'}`,
+            display: "Poliklinik Aulia"
+          }
+        }
+      ],
+      serviceProvider: {
+        reference: `Organization/${organizationId || '100023456'}`
+      }
+    };
+    
+    const encRes = await fetch(`${baseUrl}/Encounter`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/fhir+json'
+      },
+      body: JSON.stringify(encounterPayload)
+    });
+    
+    if (!encRes.ok) {
+      const errText = await encRes.text();
+      throw new Error(`Gagal membuat Encounter: ${errText}`);
+    }
+    
+    const encounterData = await encRes.json();
+    const encounterId = encounterData.id;
+    
+    // PERBAIKAN BUG PENTING: kode sebelumnya melakukan diagnosa.split('-') secara
+    // membabi-buta dan menganggap bagian pertamanya adalah kode ICD-10. Padahal
+    // field "Diagnosa" di js/klinik/rekamMedis.js adalah teks bebas tanpa aturan
+    // format apa pun (placeholder-nya "Suspek ISPA, Myalgia, dll", TIDAK ada
+    // konvensi "KODE - Deskripsi"). Akibatnya, teks diagnosa apa pun yang
+    // mengandung tanda "-" (atau bahkan yang tidak) akan terpotong dan sebagian
+    // teks dokter dikirim SEBAGAI KODE ICD-10 ke Kemenkes -- ini data medis palsu
+    // yang bisa lolos ke rekam medis nasional. Sekarang: kode ICD-10 HANYA
+    // diambil kalau teksnya benar-benar cocok pola kode ICD-10 (mis. "K30" atau
+    // "K30.1"), dan teks diagnosa asli SELALU disertakan lewat field FHIR
+    // `code.text` supaya makna diagnosa dokter tidak pernah hilang/salah baca,
+    // sesuai standar FHIR Condition yang memang mendukung teks bebas.
+    let icdCode = '';
+    let icdDisplay = '';
+    const icdPattern = /^([A-TV-Z][0-9]{2}(?:\.[0-9A-Z]{1,4})?)\s*[-:]\s*(.+)$/i;
+    if (diagnosa) {
+      const match = diagnosa.trim().match(icdPattern);
+      if (match) {
+        icdCode = match[1].toUpperCase();
+        icdDisplay = match[2].trim();
+      }
+    }
+    if (!icdCode) {
+      icdCode = 'Z00.0';
+      icdDisplay = 'General medical examination';
+    }
+
+    const conditionPayload = {
+      resourceType: "Condition",
+      clinicalStatus: {
+        coding: [
+          {
+            system: "http://terminology.hl7.org/CodeSystem/condition-clinical",
+            code: "active",
+            display: "Active"
+          }
+         ]
+      },
+      category: [
+        {
+          coding: [
+            {
+              system: "http://terminology.hl7.org/CodeSystem/condition-category",
+              code: "encounter-diagnosis",
+              display: "Encounter Diagnosis"
+            }
+          ]
+        }
+      ],
+      code: {
+        coding: [
+          {
+            system: "http://hl7.org/fhir/sid/icd-10",
+            code: icdCode,
+            display: icdDisplay
+          }
+        ],
+        // Teks diagnosa asli dari dokter selalu disertakan apa adanya, terlepas
+        // dari berhasil/tidaknya pemetaan ke kode ICD-10 di atas.
+        text: diagnosa || icdDisplay
+      },
+      subject: {
+        reference: `Patient/${patientId}`,
+        display: patientName
+      },
+      encounter: {
+        reference: `Encounter/${encounterId}`
+      }
+    };
+    
+    const condRes = await fetch(`${baseUrl}/Condition`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/fhir+json'
+      },
+      body: JSON.stringify(conditionPayload)
+    });
+    
+    let conditionId = '';
+    if (condRes.ok) {
+      const conditionData = await condRes.json();
+      conditionId = conditionData.id;
+    }
+    
+    return res.json({
+      success: true,
+      encounterId: encounterId,
+      conditionId: conditionId
+    });
+  } catch (err) {
+    console.error('SatuSehat Encounter Creation Error:', err.message);
+    return res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // Fallback all other requests to index.html for SPA/routing support
 app.get(/(.*)/, (req, res) => {
+  // Jika request memiliki extension file (seperti .png, .css, .js), jangan dikembalikan index.html (return 404)
+  if (path.extname(req.path)) {
+    return res.status(404).send('Not Found');
+  }
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
