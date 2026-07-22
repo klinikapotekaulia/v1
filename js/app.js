@@ -891,8 +891,9 @@ window.navigateTo = function (modulePath, title) {
         var secKey  = parts[0];
         var itemKey = parts[1];
         var fullKey = secKey + '.' + itemKey;
+        var hyphenatedKey = secKey + '.' + itemKey.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
         var hasSection = allowed.indexOf(secKey) !== -1;
-        var hasFullKey = allowed.indexOf(fullKey) !== -1;
+        var hasFullKey = allowed.indexOf(fullKey) !== -1 || allowed.indexOf(hyphenatedKey) !== -1;
         if (!hasSection && !hasFullKey && secKey !== 'dashboard' && modulePath !== 'dashboard' && modulePath !== 'chat') {
             Utils.toast('Akses Ditolak: Akun ' + userRole.toUpperCase() + ' tidak memiliki akses ke modul ini.', 'error');
             return;
