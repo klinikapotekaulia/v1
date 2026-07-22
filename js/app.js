@@ -13,13 +13,13 @@
 // 1. FIREBASE CONFIG
 //    Ganti nilai di bawah dengan konfigurasi project Firebase Anda.
 // ============================================================
-const firebaseConfig = { 
-  apiKey : "AIzaSyDXuiTRwHttekv5iy6rk8RJA_pVL25v-U4" , 
-  authDomain : "klinikapotekaulia-61641.firebaseapp.com" , 
-  projectId : "klinikapotekaulia-61641" , 
-  storageBucket : "klinikapotekaulia-61641.firebasestorage.app" , 
-  messagingSenderId : "857781555251" , 
-  appId : "1:857781555251:web:33dbb41f292026f9ef9346" 
+const firebaseConfig = {
+  apiKey: "AIzaSyDXuiTRwHttekv5iy6rk8RJA_pVL25v-U4",
+  authDomain: "klinikapotekaulia-61641.firebaseapp.com",
+  projectId: "klinikapotekaulia-61641",
+  storageBucket: "klinikapotekaulia-61641.firebasestorage.app",
+  messagingSenderId: "857781555251",
+  appId: "1:857781555251:web:33dbb41f292026f9ef9346"
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -431,6 +431,101 @@ window.App = {
         document.documentElement.classList.toggle('dark');
         var isDark = document.documentElement.classList.contains('dark');
         localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    },
+
+    // FITUR VAPORWAVE CYBERPUNK 2099 (ULTRA HUD & SYNTHWAVE)
+    toggleVaporwaveTheme: function () {
+        var body = document.body;
+        body.classList.toggle('theme-win98');
+        var isVaporwave = body.classList.contains('theme-win98');
+        localStorage.setItem('user_tema', isVaporwave ? 'win98' : 'default');
+        
+        if (isVaporwave) {
+            Utils.toast('⚡ Mode Vaporwave Cyberpunk 2099 Aktif!', 'success');
+            App.playCyberSound(880, 0.2);
+        } else {
+            Utils.toast('Mode Tampilan Standar Aktif', 'info');
+        }
+        App.updateCyberHud();
+    },
+
+    updateCyberHud: function () {
+        var isVaporwave = document.body.classList.contains('theme-win98');
+        var container = document.getElementById('cyber-hud-container');
+        if (!container) return;
+
+        if (!isVaporwave) {
+            container.classList.add('hidden');
+            container.innerHTML = '';
+            document.body.classList.remove('has-scanlines');
+            return;
+        }
+
+        container.classList.remove('hidden');
+
+        var hasScanlines = localStorage.getItem('cyber_scanlines') !== 'false';
+        var hasAudio = localStorage.getItem('cyber_audio') === 'true';
+
+        if (hasScanlines) {
+            document.body.classList.add('has-scanlines');
+        } else {
+            document.body.classList.remove('has-scanlines');
+        }
+
+        var html = '';
+        html += '<div class="cyber-hud-bar flex items-center justify-between flex-wrap gap-2 py-1.5 px-4 bg-slate-900/90 text-xs border-b border-pink-500/40 text-pink-400 font-mono z-20">';
+        html += '  <div class="flex items-center gap-3">';
+        html += '    <span class="cyber-hud-badge border-pink-500/50 text-pink-300"><span class="cyber-hud-dot"></span> CYBERPUNK 2099 ULTRA HUD</span>';
+        html += '    <span class="hidden md:inline text-[11px] text-cyan-400">CORE: <span class="text-emerald-400 font-bold">ONLINE</span> | LATENCY: <span id="cyber-ping" class="text-pink-300 font-bold">12ms</span> | SYNTH MATRIX: <span class="text-amber-300 font-bold">ACTIVE</span></span>';
+        html += '  </div>';
+        html += '  <div class="flex items-center gap-2 text-[11px]">';
+        html += '    <button onclick="App.toggleCyberScanlines()" class="px-2.5 py-1 rounded border ' + (hasScanlines ? 'border-cyan-400 text-cyan-300 bg-cyan-950/50 shadow-[0_0_8px_rgba(0,243,255,0.4)]' : 'border-slate-600 text-slate-400') + ' transition hover:scale-105 font-bold">';
+        html += '      CRT Scanlines: ' + (hasScanlines ? 'ON ⚡' : 'OFF');
+        html += '    </button>';
+        html += '    <button onclick="App.toggleCyberAudio()" class="px-2.5 py-1 rounded border ' + (hasAudio ? 'border-pink-400 text-pink-300 bg-pink-950/50 shadow-[0_0_8px_rgba(236,72,153,0.4)]' : 'border-slate-600 text-slate-400') + ' transition hover:scale-105 font-bold">';
+        html += '      Synth Audio: ' + (hasAudio ? 'ON 🔊' : 'OFF 🔇');
+        html += '    </button>';
+        html += '  </div>';
+        html += '</div>';
+
+        container.innerHTML = html;
+        if (window.lucide && lucide.createIcons) lucide.createIcons();
+    },
+
+    toggleCyberScanlines: function () {
+        var current = localStorage.getItem('cyber_scanlines') !== 'false';
+        localStorage.setItem('cyber_scanlines', (!current).toString());
+        App.updateCyberHud();
+        Utils.toast('Efek CRT Scanlines ' + (!current ? 'diaktifkan' : 'dinonaktifkan'), 'info');
+        if (!current) App.playCyberSound(950, 0.1);
+    },
+
+    toggleCyberAudio: function () {
+        var current = localStorage.getItem('cyber_audio') === 'true';
+        var next = !current;
+        localStorage.setItem('cyber_audio', next.toString());
+        App.updateCyberHud();
+        if (next) App.playCyberSound(880, 0.15);
+        Utils.toast('Efek Suara Synth Cyberpunk ' + (next ? 'diaktifkan 🔊' : 'dinonaktifkan 🔇'), 'info');
+    },
+
+    playCyberSound: function (freq, duration) {
+        if (localStorage.getItem('cyber_audio') !== 'true') return;
+        try {
+            var AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            var ctx = new AudioCtx();
+            var osc = ctx.createOscillator();
+            var gain = ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(freq || 600, ctx.currentTime);
+            gain.gain.setValueAtTime(0.03, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (duration || 0.1));
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + (duration || 0.1));
+        } catch (e) { }
     },
 
     logout: function () {
@@ -1172,10 +1267,13 @@ function startApp(userRole, userName, userTema) {
     }
     if (elAvatar) elAvatar.textContent = (nameSafe.charAt(0) || '?').toUpperCase();
 
-    // FITUR BARU: tema tampilan per-akun (mis. "win98"). Class ditaruh di <body>
-    // supaya css/win98.css bisa menimpa tampilan hanya untuk akun ybs.
+    // FITUR BARU: tema tampilan per-akun (mis. "win98" / Vaporwave Cyberpunk 2099).
     document.body.classList.remove('theme-win98');
-    if (userTema === 'win98') document.body.classList.add('theme-win98');
+    var savedTema = localStorage.getItem('user_tema');
+    if (userTema === 'win98' || savedTema === 'win98') {
+        document.body.classList.add('theme-win98');
+    }
+    App.updateCyberHud();
 
     renderSidebar(userRole);
     navigateTo('dashboard', App.translate('menu_dashboard'));

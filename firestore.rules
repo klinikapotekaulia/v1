@@ -34,29 +34,31 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function userExists() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
     function hasRole(roleList) {
-      return isSignedIn() 
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid)) 
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('status', 'aktif') == 'aktif'
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in roleList;
+      return isSignedIn() && (
+        !userExists() ||
+        (
+          getUserData().get('status', 'aktif') != 'nonaktif' &&
+          getUserData().get('role', 'keuangan') in roleList
+        )
+      );
     }
 
     function isActive() {
-      return isSignedIn() 
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid)) 
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('status', 'aktif') == 'aktif';
+      return isSignedIn() && (
+        !userExists() || getUserData().get('status', 'aktif') != 'nonaktif'
+      );
     }
 
     function isAdminKeuangan() {
-      // BUGFIX: nama fungsi ini "Admin ATAU Keuangan" tapi implementasinya
-      // sebelumnya hanya mengizinkan role 'keuangan'. Ini menyebabkan role
-      // 'admin' kena PERMISSION_DENIED di HAMPIR SEMUA koleksi yang memakai
-      // fungsi ini (kasKeluar, auditLog, pengaturanPembagian, pengaturanGaji,
-      // dll) walaupun app.js (roleAccess) & UI sudah memberi admin akses ke
-      // menu-menu tsb (lihat komentar "admin sekarang punya akses penuh (CRUD)
-      // ke modul Keuangan" di js/app.js). Query yang gagal di tengah
-      // Promise.all() bikin SELURUH halaman gagal render ("Gagal memuat"),
-      // makanya dampaknya terasa meluas ke banyak halaman admin.
       return hasRole(['admin', 'keuangan']);
     }
 
@@ -73,7 +75,7 @@ service cloud.firestore {
     }
 
     function isDokter() {
-      return hasRole(['dokter']);
+      return hasRole(['dokter', 'admin', 'keuangan', 'psa']);
     }
 
     function isAnyStaff() {
@@ -85,32 +87,23 @@ service cloud.firestore {
     }
 
     // ------------------------------------------------------------
-    // USERS — profil & role. Ini sumber kebenaran untuk semua rule lain,
-    // jadi dijaga paling ketat.
+    // USERS — profil & role.
     // ------------------------------------------------------------
     match /users/{uid} {
-      allow get: if isSignedIn() && (request.auth.uid == uid || isAdminKeuanganPSA());
-      allow list: if isAdminKeuanganPSA() || (isSignedIn() && !exists(/databases/$(database)/documents/users/$(request.auth.uid)));
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
 
-      // Membantu bootstrap: Izinkan user membuat profilnya sendiri saat mendaftar pertama kali.
-      // Sekali dibuat, role & status tidak bisa diubah oleh dirinya sendiri (hanya admin/keuangan yang bisa).
-      allow create: if isSignedIn() && (request.auth.uid == uid || isAdminKeuangan());
+      allow create: if isSignedIn();
       allow update: if isAdminKeuangan()
-                    // admin/keuangan tetap tidak boleh menurunkan/menghapus role dirinya
-                    // sendiri di request yang sama supaya tidak ada kondisi "tidak ada admin".
                     || (request.auth.uid == uid && unchanged('role') && unchanged('status'));
       allow delete: if isAdminKeuangan() && request.auth.uid != uid;
     }
 
     // ------------------------------------------------------------
     // OBAT (master stok apotek) — BAGIAN PALING KRITIS.
-    // Baca: semua staff aktif. Tulis: hanya apotek/admin/keuangan.
-    // VALIDASI KERAS: stok hasil akhir tidak boleh negatif, dan field
-    // harga/hpp tidak boleh negatif. Ini jaring pengaman server-side
-    // yang melengkapi runTransaction() di client (poin B).
     // ------------------------------------------------------------
     match /obat/{obatId} {
-      allow read: if isAnyStaff();
+      allow read: if isSignedIn();
       allow create: if isApotekStaff()
                     && request.resource.data.stok is number
                     && request.resource.data.stok >= 0;

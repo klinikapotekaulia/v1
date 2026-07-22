@@ -126,7 +126,7 @@ window.AppPengaturanUsers = {
         // FITUR BARU: Tema tampilan per-akun (mis. Vaporwave khusus akun tertentu)
         html += '<div><label class="block text-sm font-medium text-slate-700 mb-1">Tema Tampilan</label><select id="fu-tema" class="w-full px-3 py-2 border border-slate-300 dark:bg-slate-700 dark:text-white rounded-lg text-sm">';
         html += '<option value="default"' + ((!u.tema || u.tema==='default')?' selected':'') + '>Default (Modern)</option>';
-        html += '<option value="win98"' + (u.tema==='win98'?' selected':'') + '>Vaporwave — Neon Gradient</option>';
+        html += '<option value="win98"' + (u.tema==='win98'?' selected':'') + '>⚡ Vaporwave Cyberpunk 2099 (Ultra HUD & Synthwave)</option>';
         html += '</select><p class="text-xs text-slate-400 mt-1">Tampilan khusus untuk akun ini saja, tidak memengaruhi akun lain.</p></div>';
 
         // SINKRONISASI KARYAWAN

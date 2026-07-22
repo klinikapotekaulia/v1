@@ -76,9 +76,13 @@ var DataCache = {
                 self._cache[collectionName] = arr;
                 if (firstLoad) { firstLoad = false; resolve(); }
             }, function (err) {
-                console.error('DataCache error (' + collectionName + '):', err);
+                console.warn('DataCache snapshot error (' + collectionName + '):', err.message || err);
                 delete self._ready[collectionName];
-                reject(err);
+                if (firstLoad) {
+                    firstLoad = false;
+                    self._cache[collectionName] = self._cache[collectionName] || [];
+                    resolve();
+                }
             });
             self._unsub[collectionName] = unsub;
         });
