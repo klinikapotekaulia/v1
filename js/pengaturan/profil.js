@@ -28,6 +28,8 @@ window.AppPengaturanProfil = {
         html += '      <div class="border-b border-slate-200 dark:border-slate-700 flex gap-4">';
         html += '        <button id="tab-btn-profil" onclick="AppPengaturanProfil.switchTab(\'profil\')" class="pb-3 text-sm font-semibold border-b-2 transition-all px-1 ' + (this.activeTab === 'profil' ? 'border-primary-600 text-primary-600' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-white') + '">Profil Instansi</button>';
         html += '        <button id="tab-btn-struk" onclick="AppPengaturanProfil.switchTab(\'struk\')" class="pb-3 text-sm font-semibold border-b-2 transition-all px-1 ' + (this.activeTab === 'struk' ? 'border-primary-600 text-primary-600' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-white') + '">Pengaturan Struk</button>';
+        html += '        <button id="tab-btn-backup" onclick="AppPengaturanProfil.switchTab(\'backup\')" class="pb-3 text-sm font-semibold border-b-2 transition-all px-1 ' + (this.activeTab === 'backup' ? 'border-primary-600 text-primary-600' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-white') + '">Backup Data</button>';
+        html += '        <button id="tab-btn-printer_thermal" onclick="AppPengaturanProfil.switchTab(\'printer_thermal\')" class="pb-3 text-sm font-semibold border-b-2 transition-all px-1 ' + (this.activeTab === 'printer_thermal' ? 'border-primary-600 text-primary-600' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-white') + '">Printer Termal</button>';
         html += '      </div>';
 
         // Container Form (dinamis di-render)
@@ -132,22 +134,29 @@ window.AppPengaturanProfil = {
         
         if (d.strukLebar === undefined) d.strukLebar = '80mm';
         if (d.strukUkuranFont === undefined) d.strukUkuranFont = '12px';
+        if (!d.socials || typeof d.socials !== 'object') {
+            d.socials = { facebook: "", instagram: "", twitter: "" };
+        } else {
+            if (typeof d.socials.facebook !== 'string') d.socials.facebook = "";
+            if (typeof d.socials.instagram !== 'string') d.socials.instagram = "";
+            if (typeof d.socials.twitter !== 'string') d.socials.twitter = "";
+        }
     },
 
     switchTab: function(tab) {
         this.activeTab = tab;
         
-        // Toggle tab styles
-        var btnProfil = document.getElementById('tab-btn-profil');
-        var btnStruk = document.getElementById('tab-btn-struk');
-        
-        if (this.activeTab === 'profil') {
-            btnProfil.className = 'pb-3 text-sm font-semibold border-b-2 transition-all px-1 border-primary-600 text-primary-600';
-            btnStruk.className = 'pb-3 text-sm font-semibold border-b-2 transition-all px-1 border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-white';
-        } else {
-            btnProfil.className = 'pb-3 text-sm font-semibold border-b-2 transition-all px-1 border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-white';
-            btnStruk.className = 'pb-3 text-sm font-semibold border-b-2 transition-all px-1 border-primary-600 text-primary-600';
-        }
+        var tabs = ['profil', 'struk', 'backup', 'printer_thermal'];
+        tabs.forEach(function(t) {
+            var btn = document.getElementById('tab-btn-' + t);
+            if (btn) {
+                if (t === tab) {
+                    btn.className = 'pb-3 text-sm font-semibold border-b-2 transition-all px-1 border-primary-600 text-primary-600';
+                } else {
+                    btn.className = 'pb-3 text-sm font-semibold border-b-2 transition-all px-1 border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-white';
+                }
+            }
+        });
         
         this.renderActiveForm();
     },
@@ -159,8 +168,157 @@ window.AppPengaturanProfil = {
 
         var d = this.data;
         var role = window.currentRole || 'apotek';
-        var canEdit = (role === 'admin' || role === 'keuangan');
+        var canEdit = (role === 'admin' || role === 'keuangan' || role === 'psa');
         
+        if (this.activeTab === 'backup') {
+            var html = '<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 space-y-6">';
+            
+            html += '  <div class="border-b border-slate-100 dark:border-slate-700 pb-4">';
+            html += '    <h3 class="text-base font-bold text-gray-800 dark:text-white mb-1.5 flex items-center gap-2"><i data-lucide="database" class="w-5 h-5 text-primary-500"></i> Backup Seluruh Data Aplikasi</h3>';
+            html += '    <p class="text-xs text-slate-500 dark:text-slate-400">Unduh salinan cadangan dari seluruh koleksi data Anda di Firestore dalam format berkas JSON tunggal. Simpan berkas ini dengan aman sebagai cadangan offline instansi Anda.</p>';
+            html += '  </div>';
+
+            html += '  <div class="bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 p-4 rounded-xl flex items-start gap-3">';
+            html += '    <i data-lucide="shield-check" class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"></i>';
+            html += '    <div>';
+            html += '      <h4 class="text-xs font-bold text-blue-800 dark:text-blue-300 mb-1">Keamanan & Hak Akses</h4>';
+            html += '      <p class="text-[11px] text-blue-700 dark:text-blue-400 leading-relaxed">Proses ini mengambil data langsung dari server Firebase secara real-time. Data yang diunduh dibatasi berdasarkan hak akses akun Anda saat ini (<strong>' + role.toUpperCase() + '</strong>). Data sensitif yang tidak dapat diakses oleh peran Anda akan diabaikan secara otomatis tanpa menghentikan seluruh proses pencadangan.</p>';
+            html += '    </div>';
+            html += '  </div>';
+
+            // Progress Panel
+            html += '  <div id="backup-progress-panel" class="hidden border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-slate-50 dark:bg-slate-900/40 space-y-3">';
+            html += '    <div class="flex items-center justify-between text-xs font-semibold">';
+            html += '      <span id="backup-status-text" class="text-slate-700 dark:text-slate-300">Menyiapkan pencadangan...</span>';
+            html += '      <span id="backup-percentage" class="text-primary-600 dark:text-primary-400">0%</span>';
+            html += '    </div>';
+            html += '    <div class="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">';
+            html += '      <div id="backup-progress-bar" class="bg-primary-600 h-full rounded-full transition-all duration-300" style="width: 0%"></div>';
+            html += '    </div>';
+            html += '    <div id="backup-log-container" class="max-h-40 overflow-y-auto bg-slate-900 dark:bg-black/40 text-slate-300 text-[10px] font-mono p-3 rounded-lg border border-slate-800 dark:border-slate-900 space-y-1">';
+            html += '    </div>';
+            html += '  </div>';
+
+            // Action
+            if (canEdit) {
+                html += '  <div class="flex justify-start">';
+                html += '    <button type="button" id="btn-start-backup" onclick="AppPengaturanProfil.startBackup()" class="bg-primary-600 hover:bg-primary-700 text-white font-semibold px-6 py-2.5 rounded-lg text-xs flex items-center gap-2 shadow-sm shadow-primary-500/10">';
+                html += '      <i data-lucide="download-cloud" class="w-4 h-4"></i> Mulai Unduh Backup (JSON)';
+                html += '    </button>';
+                html += '  </div>';
+            } else {
+                html += '  <div class="text-center text-xs text-slate-400 pt-4 border-t border-slate-200 dark:border-slate-700">Hanya Admin, Keuangan, atau PSA yang dapat melakukan backup data.</div>';
+            }
+
+            html += '</div>';
+            container.innerHTML = html;
+            if (window.lucide) lucide.createIcons({ el: container });
+            return;
+        }
+
+        if (this.activeTab === 'printer_thermal') {
+            var html = '<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 space-y-6">';
+            
+            html += '  <div class="border-b border-slate-100 dark:border-slate-700 pb-4">';
+            html += '    <h3 class="text-base font-bold text-gray-800 dark:text-white mb-1.5 flex items-center gap-2"><i data-lucide="printer" class="w-5 h-5 text-primary-500"></i> Koneksi Printer Termal</h3>';
+            html += '    <p class="text-xs text-slate-500 dark:text-slate-400">Hubungkan browser langsung dengan printer kasir termal (Bluetooth/ESC-POS) Anda secara nirkabel tanpa dialog cetak sistem.</p>';
+            html += '  </div>';
+
+            var btSupported = !!navigator.bluetooth;
+            if (!btSupported) {
+                html += '  <div class="bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 p-4 rounded-xl flex items-start gap-3">';
+                html += '    <i data-lucide="alert-triangle" class="w-5 h-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5"></i>';
+                html += '    <div>';
+                html += '      <h4 class="text-xs font-bold text-rose-800 dark:text-rose-300 mb-1">Web Bluetooth Tidak Didukung</h4>';
+                html += '      <p class="text-[11px] text-rose-700 dark:text-rose-400 leading-relaxed">Browser Anda tidak mendukung Web Bluetooth API. Fitur koneksi langsung ini membutuhkan browser berbasis Chromium (seperti <strong>Google Chrome, Microsoft Edge, atau Opera</strong>) di Desktop maupun Android. Safari dan Firefox tidak mendukung fitur ini.</p>';
+                html += '    </div>';
+                html += '  </div>';
+            } else {
+                var isIframe = window.self !== window.top;
+                if (isIframe) {
+                    html += '  <div class="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 p-4 rounded-xl flex items-start gap-3">';
+                    html += '    <i data-lucide="info" class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5"></i>';
+                    html += '    <div class="flex-1">';
+                    html += '      <h4 class="text-xs font-bold text-amber-800 dark:text-amber-300 mb-1">Akses Bluetooth Terbuka di Tab Baru</h4>';
+                    html += '      <p class="text-[11px] text-amber-700 dark:text-amber-400 leading-relaxed mb-2.5">Sistem keamanan browser membatasi Web Bluetooth jika dijalankan di dalam bingkai (iframe) pratinjau AI Studio ini. Silakan buka aplikasi di <strong>Tab Baru</strong> agar printer termal Bluetooth Anda dapat dideteksi dan dihubungkan secara langsung.</p>';
+                    html += '      <a href="#" onclick="window.open(window.location.href, \'_blank\'); return false;" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-semibold rounded-lg transition shadow-sm">';
+                    html += '        <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Buka Aplikasi di Tab Baru';
+                    html += '      </a>';
+                    html += '    </div>';
+                    html += '  </div>';
+                }
+
+                var isConnected = window.ThermalPrinter.isConnected();
+                var statusColor = isConnected ? 'text-emerald-500' : 'text-slate-400';
+                var statusBg = isConnected ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/20' : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700';
+                
+                html += '  <div class="p-4 rounded-xl border flex items-center justify-between ' + statusBg + '">';
+                html += '    <div class="flex items-center gap-3">';
+                html += '      <div class="w-10 h-10 rounded-full flex items-center justify-center ' + (isConnected ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400') + '">';
+                html += '        <i data-lucide="printer" class="w-5 h-5"></i>';
+                html += '      </div>';
+                html += '      <div>';
+                html += '        <div class="flex items-center gap-2">';
+                html += '          <span class="text-xs font-bold text-slate-800 dark:text-white">Status Printer:</span>';
+                html += '          <span class="inline-flex items-center gap-1 text-[11px] font-semibold ' + statusColor + '">';
+                html += '            <span class="w-2 h-2 rounded-full ' + (isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400') + '"></span>';
+                html += '            ' + (isConnected ? 'Terhubung' : 'Terputus');
+                html += '          </span>';
+                html += '        </div>';
+                html += '        <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">' + (isConnected ? 'Perangkat: ' + window.ThermalPrinter.printerName : 'Silakan klik hubungkan di sebelah kanan') + '</p>';
+                html += '      </div>';
+                html += '    </div>';
+                
+                if (isConnected) {
+                    html += '    <button type="button" onclick="AppPengaturanProfil.disconnectPrinter()" class="bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/20 dark:hover:bg-rose-900/30 font-semibold px-4 py-2 rounded-lg text-xs border border-rose-100 dark:border-rose-900/30 flex items-center gap-1.5 transition">';
+                    html += '      <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Putuskan';
+                    html += '    </button>';
+                } else {
+                    html += '    <button type="button" onclick="AppPengaturanProfil.connectPrinter()" class="bg-primary-600 hover:bg-primary-700 text-white font-semibold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow-sm shadow-primary-500/10 transition">';
+                    html += '      <i data-lucide="link" class="w-3.5 h-3.5"></i> Hubungkan';
+                    html += '    </button>';
+                }
+                html += '  </div>';
+
+                html += '  <div class="space-y-4 border-t border-slate-100 dark:border-slate-700 pt-4">';
+                html += '    <h4 class="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Pengaturan Printer Termal</h4>';
+
+                var paperW = window.ThermalPrinter.paperWidth;
+                html += '    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">';
+                html += '      <div>';
+                html += '        <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Ukuran Lebar Kertas Bluetooth</label>';
+                html += '        <select onchange="AppPengaturanProfil.changePrinterPaperWidth(this.value)" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-primary-500">';
+                html += '          <option value="58mm" ' + (paperW === '58mm' ? 'selected' : '') + '>Kertas Kecil (58mm - 32 Karakter)</option>';
+                html += '          <option value="80mm" ' + (paperW === '80mm' ? 'selected' : '') + '>Kertas Standar (80mm - 48 Karakter)</option>';
+                html += '        </select>';
+                html += '      </div>';
+
+                var isAuto = window.ThermalPrinter.isAutoPrint;
+                html += '      <div>';
+                html += '        <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Otomatis Cetak Struk</label>';
+                html += '        <select onchange="AppPengaturanProfil.changePrinterAutoPrint(this.value === \'true\')" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-primary-500">';
+                html += '          <option value="false" ' + (!isAuto ? 'selected' : '') + '>Manual (Klik cetak baru keluar)</option>';
+                html += '          <option value="true" ' + (isAuto ? 'selected' : '') + '>Otomatis cetak setelah simpan transaksi</option>';
+                html += '        </select>';
+                html += '      </div>';
+                html += '    </div>';
+
+                if (isConnected) {
+                    html += '    <div class="flex justify-start border-t border-slate-100 dark:border-slate-700 pt-4">';
+                    html += '      <button type="button" onclick="AppPengaturanProfil.testPrint()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow-sm shadow-indigo-500/10 transition">';
+                    html += '        <i data-lucide="file-text" class="w-4 h-4"></i> Cetak Halaman Uji Coba (Test Print)';
+                    html += '      </button>';
+                    html += '    </div>';
+                }
+                html += '  </div>';
+            }
+
+            html += '</div>';
+            container.innerHTML = html;
+            if (window.lucide) lucide.createIcons({ el: container });
+            return;
+        }
+
         var html = '<form id="form-profil-instansi" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 space-y-5">';
         
         if (this.activeTab === 'profil') {
@@ -194,6 +352,25 @@ window.AppPengaturanProfil = {
             html += '  <div>';
             html += '    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Email (Opsional)</label>';
             html += '    <input type="email" id="pr-email" value="' + Utils.escapeHtml(d.email || '') + '" ' + (canEdit ? '' : 'readonly') + ' class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm ' + (canEdit ? '' : 'bg-slate-100 cursor-not-allowed') + '" placeholder="info@aulia.com" oninput="AppPengaturanProfil.handleInputChange(\'email\', this.value)">';
+            html += '  </div>';
+            html += '</div>';
+
+            // Media Sosial
+            html += '<div class="border-t border-slate-100 dark:border-slate-700 pt-4 mt-4 space-y-4">';
+            html += '  <h4 class="text-xs font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5"><i data-lucide="share-2" class="w-4 h-4 text-emerald-500"></i> Media Sosial (Footer Landing Page)</h4>';
+            html += '  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">';
+            html += '    <div>';
+            html += '      <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><i data-lucide="facebook" class="w-3.5 h-3.5 text-blue-500"></i> Facebook</label>';
+            html += '      <input type="text" id="pr-fb" value="' + Utils.escapeHtml(d.socials.facebook || '') + '" ' + (canEdit ? '' : 'readonly') + ' class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-xs ' + (canEdit ? '' : 'bg-slate-100 cursor-not-allowed') + '" placeholder="https://facebook.com/username" oninput="AppPengaturanProfil.handleSocialChange(\'facebook\', this.value)">';
+            html += '    </div>';
+            html += '    <div>';
+            html += '      <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><i data-lucide="instagram" class="w-3.5 h-3.5 text-pink-500"></i> Instagram</label>';
+            html += '      <input type="text" id="pr-ig" value="' + Utils.escapeHtml(d.socials.instagram || '') + '" ' + (canEdit ? '' : 'readonly') + ' class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-xs ' + (canEdit ? '' : 'bg-slate-100 cursor-not-allowed') + '" placeholder="https://instagram.com/username" oninput="AppPengaturanProfil.handleSocialChange(\'instagram\', this.value)">';
+            html += '    </div>';
+            html += '    <div>';
+            html += '      <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><svg class="w-3.5 h-3.5 dark:fill-white fill-slate-800 inline-block align-text-bottom" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> Twitter / X</label>';
+            html += '      <input type="text" id="pr-tw" value="' + Utils.escapeHtml(d.socials.twitter || '') + '" ' + (canEdit ? '' : 'readonly') + ' class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-xs ' + (canEdit ? '' : 'bg-slate-100 cursor-not-allowed') + '" placeholder="https://twitter.com/username" oninput="AppPengaturanProfil.handleSocialChange(\'twitter\', this.value)">';
+            html += '    </div>';
             html += '  </div>';
             html += '</div>';
             
@@ -405,6 +582,11 @@ window.AppPengaturanProfil = {
         this.updatePreview();
     },
 
+    handleSocialChange: function(key, value) {
+        if (!this.data.socials) this.data.socials = {};
+        this.data.socials[key] = value;
+    },
+
     handleLogoUpload: function(event) {
         var self = this;
         var file = event.target.files[0];
@@ -542,8 +724,71 @@ window.AppPengaturanProfil = {
         previewContainer.innerHTML = html;
     },
 
+    validateProfilData: function(d) {
+        if (!d.nama || d.nama.trim() === '') {
+            return 'Nama Instansi tidak boleh kosong.';
+        }
+        if (d.nama.length > 50) {
+            return 'Nama Instansi maksimal 50 karakter.';
+        }
+
+        if (!d.telp || d.telp.trim() === '') {
+            return 'No. Telepon / WA tidak boleh kosong.';
+        }
+        var phoneRegex = /^[0-9+\s()-\/]{7,25}$/;
+        if (!phoneRegex.test(d.telp.trim())) {
+            return 'No. Telepon / WA tidak valid.';
+        }
+
+        if (!d.email || d.email.trim() === '') {
+            return 'Alamat Email Resmi tidak boleh kosong.';
+        }
+        var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(d.email.trim())) {
+            return 'Alamat Email Resmi tidak valid.';
+        }
+
+        if (!d.alamat || d.alamat.trim() === '') {
+            return 'Alamat Lengkap tidak boleh kosong.';
+        }
+        if (d.alamat.trim().length < 5) {
+            return 'Alamat Lengkap harus diisi minimal 5 karakter.';
+        }
+
+        // Validate socials
+        var urlRegex = /^(https?:\/\/)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(:\d+)?(\/.*)?$/;
+        function checkUrl(url, fieldName) {
+            if (url && url.trim() !== '') {
+                if (!urlRegex.test(url.trim())) {
+                    return 'Format URL ' + fieldName + ' tidak valid (contoh: https://facebook.com/username).';
+                }
+            }
+            return null;
+        }
+
+        var soc = d.socials || {};
+        var fbErr = checkUrl(soc.facebook, 'Facebook');
+        if (fbErr) return fbErr;
+        var igErr = checkUrl(soc.instagram, 'Instagram');
+        if (igErr) return igErr;
+        var twErr = checkUrl(soc.twitter, 'Twitter / X');
+        if (twErr) return twErr;
+
+        return null;
+    },
+
     simpan: function() {
         var self = this;
+
+        // Run validation if we are on the 'profil' tab
+        if (self.activeTab === 'profil') {
+            var valError = self.validateProfilData(self.data);
+            if (valError) {
+                Utils.toast(valError, 'error');
+                return;
+            }
+        }
+
         Utils.toast('Menyimpan...', 'info');
         
         // Simpan langsung seluruh data objek profil
@@ -553,11 +798,222 @@ window.AppPengaturanProfil = {
 
         db.collection('pengaturan').doc('profil').set(dataToSave, { merge: true })
             .then(function() {
+                // ALSO sync to landing document to keep it perfectly integrated!
+                var landingUpdate = {};
+                if (dataToSave.nama) landingUpdate.brandName = dataToSave.nama;
+                if (dataToSave.telp) landingUpdate.phone = dataToSave.telp;
+                if (dataToSave.email) landingUpdate.email = dataToSave.email;
+                if (dataToSave.alamat) landingUpdate.address = dataToSave.alamat;
+                if (dataToSave.socials) landingUpdate.socials = dataToSave.socials;
+
+                return db.collection('pengaturan').doc('landing').set(landingUpdate, { merge: true });
+            })
+            .then(function() {
                 Utils.toast('Semua perubahan berhasil disimpan!', 'success');
                 self.init();
             })
             .catch(function(err) {
                 Utils.toast('Gagal menyimpan: ' + err.message, 'error');
+            });
+    },
+
+    startBackup: function() {
+        var self = this;
+        var btn = document.getElementById('btn-start-backup');
+        var progressPanel = document.getElementById('backup-progress-panel');
+        var progressBar = document.getElementById('backup-progress-bar');
+        var percentageText = document.getElementById('backup-percentage');
+        var statusText = document.getElementById('backup-status-text');
+        var logContainer = document.getElementById('backup-log-container');
+
+        if (!progressPanel || !btn) return;
+
+        // Disabling the button to prevent double backup
+        btn.disabled = true;
+        btn.classList.add('opacity-50', 'cursor-not-allowed');
+        progressPanel.classList.remove('hidden');
+
+        logContainer.innerHTML = '';
+        progressBar.style.width = '0%';
+        percentageText.innerText = '0%';
+        statusText.innerText = 'Menghubungkan ke database...';
+
+        function log(message, type) {
+            var colorClass = 'text-slate-300';
+            if (type === 'success') colorClass = 'text-emerald-400';
+            if (type === 'warning') colorClass = 'text-amber-400';
+            if (type === 'error') colorClass = 'text-rose-400';
+            
+            var div = document.createElement('div');
+            div.className = colorClass + ' py-0.5 border-b border-slate-800/40 last:border-0';
+            div.innerText = '[' + new Date().toLocaleTimeString('id-ID') + '] ' + message;
+            logContainer.appendChild(div);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        log('Pencadangan dimulai...', 'info');
+
+        var collections = [
+            'users',
+            'obat',
+            'transaksi',
+            'pembelian',
+            'retur',
+            'stockOpnameRequests',
+            'stockOpnameHistory',
+            'pasien',
+            'rekamMedis',
+            'antrian',
+            'karyawan',
+            'absensi',
+            'jurnalManual',
+            'kasKeluar',
+            'kasMasuk',
+            'saldoAwal',
+            'payrollHistory',
+            'payrollPeriode',
+            'piutangKaryawan',
+            'thrTabungan',
+            'thrPembayaranHistory',
+            'groupChat',
+            'chatReadStatus',
+            'auditLog',
+            'pengaturan',
+            'pengaturanGaji',
+            'pengaturanPembagian',
+            'pengaturanPembagianHistory',
+            'masterTindakan'
+        ];
+
+        var backupResult = {
+            metadata: {
+                appName: 'Aulia Apotek Klinik',
+                backupDate: new Date().toISOString(),
+                backupBy: firebase.auth().currentUser ? firebase.auth().currentUser.email : 'Unknown',
+                role: window.currentRole || 'Unknown',
+                version: '1.0.0'
+            },
+            data: {}
+        };
+
+        var completedCount = 0;
+        var totalCollections = collections.length;
+
+        function processNextCollection(index) {
+            if (index >= totalCollections) {
+                // Done!
+                statusText.innerText = 'Pencadangan selesai!';
+                progressBar.style.width = '100%';
+                percentageText.innerText = '100%';
+                log('Semua koleksi selesai diproses. Menyiapkan berkas unduhan...', 'success');
+
+                try {
+                    var jsonString = JSON.stringify(backupResult, null, 2);
+                    var blob = new Blob([jsonString], { type: 'application/json' });
+                    var url = URL.createObjectURL(blob);
+                    
+                    var a = document.createElement('a');
+                    var dateStr = new Date().toISOString().slice(0, 10);
+                    a.href = url;
+                    a.download = 'backup_aulia_apotek_klinik_' + dateStr + '_' + Date.now() + '.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    Utils.toast('Cadangan data berhasil diunduh!', 'success');
+                    log('Berkas cadangan berhasil diunduh ke komputer Anda.', 'success');
+                } catch (err) {
+                    log('Gagal mengunduh berkas: ' + err.message, 'error');
+                    Utils.toast('Gagal mengunduh cadangan: ' + err.message, 'error');
+                }
+
+                // Restore button
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                return;
+            }
+
+            var colName = collections[index];
+            statusText.innerText = 'Mengunduh koleksi "' + colName + '"...';
+            log('Memproses koleksi: "' + colName + '"...', 'info');
+
+            db.collection(colName).get().then(function(snapshot) {
+                var docsList = [];
+                snapshot.forEach(function(doc) {
+                    docsList.push({
+                        id: doc.id,
+                        data: doc.data()
+                    });
+                });
+
+                backupResult.data[colName] = docsList;
+                log('Sukses mengambil "' + colName + '". Jumlah dokumen: ' + docsList.length, 'success');
+                
+                updateProgress(index + 1);
+            }).catch(function(err) {
+                backupResult.data[colName] = {
+                    error: err.message || 'Error fetching collection data'
+                };
+                log('Koleksi "' + colName + '" dilewati: ' + (err.code === 'permission-denied' ? 'Akses Ditolak (Hak Akses Tidak Cukup)' : err.message), 'warning');
+                
+                updateProgress(index + 1);
+            });
+        }
+
+        function updateProgress(doneCount) {
+            completedCount = doneCount;
+            var pct = Math.round((completedCount / totalCollections) * 100);
+            progressBar.style.width = pct + '%';
+            percentageText.innerText = pct + '%';
+            
+            setTimeout(function() {
+                processNextCollection(completedCount);
+            }, 100);
+        }
+
+        processNextCollection(0);
+    },
+
+    connectPrinter: function() {
+        var self = this;
+        window.ThermalPrinter.connect()
+            .then(function() {
+                self.renderActiveForm();
+            })
+            .catch(function(err) {
+                var msg = err.message || '';
+                if (msg.includes('permissions policy') || msg.includes('disallowed') || msg.includes('SecurityError') || msg.includes('Attribute')) {
+                    alert('Sistem keamanan browser memblokir akses Bluetooth di dalam bingkai (iframe) pratinjau AI Studio ini.\n\nSilakan klik tombol "Buka Aplikasi di Tab Baru" berwarna kuning yang ada di halaman ini, atau gunakan mode "Open in New Tab" di pojok kanan atas browser agar printer termal Bluetooth Anda dapat dideteksi dengan lancar.');
+                } else {
+                    Utils.toast('Gagal menyambungkan: ' + err.message, 'error');
+                }
+            });
+    },
+
+    disconnectPrinter: function() {
+        window.ThermalPrinter.disconnect();
+        this.renderActiveForm();
+    },
+
+    changePrinterPaperWidth: function(width) {
+        window.ThermalPrinter.setPaperWidth(width);
+        Utils.toast('Lebar kertas diatur ke ' + width, 'success');
+    },
+
+    changePrinterAutoPrint: function(auto) {
+        window.ThermalPrinter.setAutoPrint(auto);
+        Utils.toast('Cetak otomatis diatur ke ' + (auto ? 'Aktif' : 'Nonaktif'), 'success');
+    },
+
+    testPrint: function() {
+        var self = this;
+        window.ThermalPrinter.printTestPage(this.data)
+            .then(function() {
+                Utils.toast('Halaman uji coba berhasil dikirim ke printer!', 'success');
+            })
+            .catch(function(err) {
+                Utils.toast('Gagal uji coba: ' + err.message, 'error');
             });
     }
 };

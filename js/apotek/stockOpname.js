@@ -151,6 +151,7 @@ window.AppApotekStockOpname = {
             status: 'pending',
             totalItem: itemsToSubmit.length,
             items: itemsToSubmit,
+            diajukanOleh: window.currentUserName || 'Apoteker', // FIX BUG: field ini sebelumnya tidak pernah disimpan, padahal renderApprovalList() membacanya (req.diajukanOleh) untuk menampilkan "Pengajuan dari: ...". Akibatnya nama pengaju selalu kosong di layar approval.
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         }).then(function() {
             Utils.toast('Pengajuan opname terkirim! Menunggu approval.', 'success');

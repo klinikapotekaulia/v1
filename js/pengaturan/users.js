@@ -5,6 +5,7 @@
 
 window.AppPengaturanUsers = {
     data: [],
+    karyawanList: [],
 
     render: function() {
         var html = '<div class="page-enter max-w-4xl">';
@@ -27,9 +28,16 @@ window.AppPengaturanUsers = {
             return;
         }
 
-        db.collection('users').orderBy('nama').get().then(snap => {
+        var pUsers = db.collection('users').orderBy('nama').get();
+        var pKaryawan = db.collection('karyawan').orderBy('nama').get();
+
+        Promise.all([pUsers, pKaryawan]).then(results => {
             AppPengaturanUsers.data = [];
-            snap.forEach(doc => { var d = doc.data(); d.id = doc.id; AppPengaturanUsers.data.push(d); });
+            results[0].forEach(doc => { var d = doc.data(); d.id = doc.id; AppPengaturanUsers.data.push(d); });
+
+            AppPengaturanUsers.karyawanList = [];
+            results[1].forEach(doc => { var d = doc.data(); d.id = doc.id; AppPengaturanUsers.karyawanList.push(d); });
+
             AppPengaturanUsers.renderList();
         }).catch(err => Utils.toast('Gagal memuat: ' + err.message, 'error'));
     },
@@ -52,6 +60,7 @@ window.AppPengaturanUsers = {
             var roleBadge = '';
             if(u.role === 'admin') roleBadge = '<span class="text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full">Admin</span>';
             else if(u.role === 'keuangan') roleBadge = '<span class="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">Keuangan</span>';
+            else if(u.role === 'psa') roleBadge = '<span class="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full">PSA</span>';
             else if(u.role === 'klinik') roleBadge = '<span class="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">Klinik</span>';
             // FIX (permintaan user): role baru khusus akun Dokter (beda dari staf Klinik biasa).
             else if(u.role === 'dokter') roleBadge = '<span class="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">Dokter</span>';
@@ -85,6 +94,10 @@ window.AppPengaturanUsers = {
         var isEdit = !!id;
         var u = isEdit ? this.data.find(x => x.id === id) : {};
         
+        var availableKaryawan = this.karyawanList.filter(function(k) {
+            return !k.userId || k.userId === id;
+        });
+
         var html = '<div class="p-6">';
         html += '<div class="flex items-center justify-between mb-5"><h3 class="text-lg font-semibold text-gray-800 dark:text-white">' + (isEdit ? 'Edit' : 'Tambah') + ' User</h3><button onclick="Utils.closeModal()" class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"><i data-lucide="x" class="w-5 h-5 text-slate-400"></i></button></div>';
         html += '<form id="form-user" class="space-y-4">';
@@ -103,7 +116,8 @@ window.AppPengaturanUsers = {
         html += '<option value="klinik"' + (u.role==='klinik'?' selected':'') + '>Klinik</option>';
         html += '<option value="dokter"' + (u.role==='dokter'?' selected':'') + '>Dokter</option>';
         html += '<option value="admin"' + (u.role==='admin'?' selected':'') + '>Admin (Kepala)</option>';
-        html += '<option value="keuangan"' + (u.role==='keuangan'?' selected':'') + '>Keuangan (PSA)</option>';
+        html += '<option value="psa"' + (u.role==='psa'?' selected':'') + '>PSA (Pemilik)</option>';
+        html += '<option value="keuangan"' + (u.role==='keuangan'?' selected':'') + '>Keuangan (Master)</option>';
         html += '</select></div>';
         
         html += '<div><label class="block text-sm font-medium text-slate-700 mb-1">Status</label><select id="fu-status" class="w-full px-3 py-2 border border-slate-300 dark:bg-slate-700 dark:text-white rounded-lg text-sm"><option value="aktif"' + (u.status!=='nonaktif'?' selected':'') + '>Aktif</option><option value="nonaktif"' + (u.status==='nonaktif'?' selected':'') + '>Nonaktif</option></select></div>';
@@ -114,6 +128,29 @@ window.AppPengaturanUsers = {
         html += '<option value="default"' + ((!u.tema || u.tema==='default')?' selected':'') + '>Default (Modern)</option>';
         html += '<option value="win98"' + (u.tema==='win98'?' selected':'') + '>Vaporwave — Neon Gradient</option>';
         html += '</select><p class="text-xs text-slate-400 mt-1">Tampilan khusus untuk akun ini saja, tidak memengaruhi akun lain.</p></div>';
+
+        // SINKRONISASI KARYAWAN
+        html += '<div class="border-t border-slate-200 dark:border-slate-700 pt-4 mt-2">';
+        html += '<label class="block text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2">Sinkronisasi Data Karyawan</label>';
+        html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Hubungkan ke Karyawan *</label>';
+        html += '<select id="fu-karyawan-mode" onchange="AppPengaturanUsers.toggleKaryawanMode(this.value)" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm">';
+        if (!isEdit) {
+            html += '<option value="auto">Hubungkan Baru (Buat Profil Karyawan Otomatis)</option>';
+        }
+        html += '<option value="link"' + (u.karyawanId ? ' selected' : '') + '>Hubungkan ke Karyawan yang Sudah Ada</option>';
+        html += '<option value="none"' + (!u.karyawanId && isEdit ? ' selected' : '') + '>Jangan Hubungkan</option>';
+        html += '</select></div>';
+
+        html += '<div id="fu-karyawan-select-container" class="mt-3 ' + (u.karyawanId || (isEdit && !u.karyawanId) ? '' : 'hidden') + '">';
+        html += '<label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Pilih Karyawan *</label>';
+        html += '<select id="fu-karyawan-id" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm">';
+        html += '<option value="">-- Pilih Karyawan --</option>';
+        availableKaryawan.forEach(k => {
+            var sel = (k.id === u.karyawanId) ? ' selected' : '';
+            html += '<option value="' + k.id + '"' + sel + '>' + Utils.escapeHtml(k.nama) + ' (' + Utils.escapeHtml(k.departemen || '-') + ')</option>';
+        });
+        html += '</select></div>';
+        html += '</div>';
 
         html += '<div class="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-700">';
         html += '<button type="button" onclick="Utils.closeModal()" class="px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Batal</button>';
@@ -133,6 +170,16 @@ window.AppPengaturanUsers = {
         }, 100);
     },
 
+    toggleKaryawanMode: function(val) {
+        var container = document.getElementById('fu-karyawan-select-container');
+        if (!container) return;
+        if (val === 'link') {
+            container.classList.remove('hidden');
+        } else {
+            container.classList.add('hidden');
+        }
+    },
+
     simpan: function() {
         var idField = document.getElementById('fu-id');
         var isEdit = !!idField;
@@ -141,19 +188,59 @@ window.AppPengaturanUsers = {
         var email = document.getElementById('fu-email').value.trim();
         var role = document.getElementById('fu-role').value;
         var status = document.getElementById('fu-status').value;
-        var tema = document.getElementById('fu-tema').value; // FITUR BARU
+        var tema = document.getElementById('fu-tema').value; 
+
+        var karyawanMode = document.getElementById('fu-karyawan-mode').value;
+        var selectedKaryawanId = document.getElementById('fu-karyawan-id').value;
 
         if (isEdit) {
-            // Update data Firestore saja (Email & Password tidak bisa diubah disini demi keamanan)
-            db.collection('users').doc(idField.value).update({
-                nama: nama, role: role, status: status, tema: tema, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            var userId = idField.value;
+            var oldUser = AppPengaturanUsers.data.find(x => x.id === userId);
+            var oldKaryawanId = oldUser ? oldUser.karyawanId : null;
+
+            Utils.toast('Menyimpan...', 'info');
+
+            var finalKaryawanId = null;
+            if (karyawanMode === 'link') {
+                if (!selectedKaryawanId) {
+                    Utils.toast('Pilih karyawan terlebih dahulu', 'error');
+                    return;
+                }
+                finalKaryawanId = selectedKaryawanId;
+            }
+
+            db.collection('users').doc(userId).update({
+                nama: nama, role: role, status: status, tema: tema, karyawanId: finalKaryawanId, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             }).then(() => {
-                Utils.toast('Data user berhasil diupdate!', 'success');
+                var batch = db.batch();
+                
+                // Jika karyawan berubah
+                if (oldKaryawanId && oldKaryawanId !== finalKaryawanId) {
+                    batch.update(db.collection('karyawan').doc(oldKaryawanId), { userId: null, email: null });
+                }
+                if (finalKaryawanId) {
+                    batch.update(db.collection('karyawan').doc(finalKaryawanId), { userId: userId, email: email, nama: nama, status: status });
+                }
+                
+                return batch.commit();
+            }).then(() => {
+                Utils.toast('Data user & karyawan berhasil disinkronkan!', 'success');
                 Utils.closeModal();
                 AppPengaturanUsers.init();
-            }).catch(err => Utils.toast('Gagal: ' + err.message, 'error'));
+            }).catch(err => {
+                console.error('Edit user sync error:', err);
+                Utils.toast('User disimpan, tapi sinkronisasi data karyawan gagal: ' + err.message, 'warning');
+                Utils.closeModal();
+                AppPengaturanUsers.init();
+            });
         } else {
             var pass = document.getElementById('fu-pass').value;
+            if (karyawanMode === 'link' && !selectedKaryawanId) {
+                Utils.toast('Pilih karyawan terlebih dahulu', 'error');
+                return;
+            }
+
+            Utils.toast('Menyimpan...', 'info');
 
             // FIX: hapus dulu Secondary app yg mungkin masih hidup (race condition double-click).
             var existing = firebase.apps.find(function(a) { return a.name === 'Secondary'; });
@@ -162,16 +249,66 @@ window.AppPengaturanUsers = {
             ready.then(function() {
                 var secondaryApp = firebase.initializeApp(firebaseConfig, "Secondary");
                 var createdUser = null;
+                var finalUid = null;
+
                 secondaryApp.auth().createUserWithEmailAndPassword(email, pass)
                     .then(function(userCredential) {
                         createdUser = userCredential.user;
-                        return db.collection('users').doc(userCredential.user.uid).set({
-                            nama: nama, email: email, role: role, status: status, tema: tema,
-                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                        });
+                        finalUid = userCredential.user.uid;
+
+                        // Jika "auto" mode, kita buat profil karyawan baru otomatis
+                        if (karyawanMode === 'auto') {
+                            var dept = 'Umum';
+                            var jab = 'Staf';
+                            if (role === 'dokter') { dept = 'Dokter'; jab = 'Dokter'; }
+                            else if (role === 'klinik') { dept = 'Klinik'; jab = 'Staf Klinik'; }
+                            else if (role === 'apotek') { dept = 'Apotek'; jab = 'Staf Apotek'; }
+                            else if (role === 'admin') { dept = 'Umum'; jab = 'Admin'; }
+                            else if (role === 'psa') { dept = 'Umum'; jab = 'PSA'; }
+                            else if (role === 'keuangan') { dept = 'Umum'; jab = 'Keuangan'; }
+
+                            var newKarObj = {
+                                nama: nama,
+                                departemen: dept,
+                                jabatan: jab,
+                                nip: '',
+                                status: status,
+                                userId: finalUid,
+                                email: email,
+                                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                            };
+
+                            return db.collection('karyawan').add(newKarObj).then(function(karDocRef) {
+                                return db.collection('users').doc(finalUid).set({
+                                    nama: nama, email: email, role: role, status: status, tema: tema,
+                                    karyawanId: karDocRef.id,
+                                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                                });
+                            });
+                        } else if (karyawanMode === 'link') {
+                            // Link existing karyawan
+                            var batch = db.batch();
+                            batch.set(db.collection('users').doc(finalUid), {
+                                nama: nama, email: email, role: role, status: status, tema: tema,
+                                karyawanId: selectedKaryawanId,
+                                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+                            batch.update(db.collection('karyawan').doc(selectedKaryawanId), {
+                                userId: finalUid, email: email, status: status
+                            });
+                            return batch.commit();
+                        } else {
+                            // Jangan hubungkan (karyawanMode === 'none')
+                            return db.collection('users').doc(finalUid).set({
+                                nama: nama, email: email, role: role, status: status, tema: tema,
+                                karyawanId: null,
+                                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+                        }
                     })
                     .then(function() {
-                        Utils.toast('User baru berhasil ditambahkan!', 'success');
+                        Utils.toast('User baru berhasil ditambahkan & disinkronkan!', 'success');
                         Utils.closeModal();
                         AppPengaturanUsers.init();
                     })
@@ -191,9 +328,18 @@ window.AppPengaturanUsers = {
 
     toggleStatus: function(id, currentStatus) {
         var newStatus = currentStatus === 'aktif' ? 'nonaktif' : 'aktif';
-        db.collection('users').doc(id).update({ status: newStatus })
+        var user = this.data.find(x => x.id === id);
+        var kId = user ? user.karyawanId : null;
+
+        var batch = db.batch();
+        batch.update(db.collection('users').doc(id), { status: newStatus });
+        if (kId) {
+            batch.update(db.collection('karyawan').doc(kId), { status: newStatus });
+        }
+
+        batch.commit()
             .then(() => {
-                Utils.toast('Status user diubah menjadi ' + newStatus, 'success');
+                Utils.toast('Status user & karyawan diubah menjadi ' + newStatus, 'success');
                 AppPengaturanUsers.init();
             })
             .catch(err => Utils.toast('Gagal: ' + err.message, 'error'));

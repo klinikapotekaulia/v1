@@ -60,12 +60,16 @@ service cloud.firestore {
       return hasRole(['admin', 'keuangan']);
     }
 
+    function isAdminKeuanganPSA() {
+      return hasRole(['admin', 'keuangan', 'psa']);
+    }
+
     function isApotekStaff() {
-      return hasRole(['apotek', 'admin', 'keuangan']);
+      return hasRole(['apotek', 'admin', 'keuangan', 'psa']);
     }
 
     function isKlinikStaff() {
-      return hasRole(['klinik', 'dokter', 'admin', 'keuangan']);
+      return hasRole(['klinik', 'dokter', 'admin', 'keuangan', 'psa']);
     }
 
     function isDokter() {
@@ -73,7 +77,7 @@ service cloud.firestore {
     }
 
     function isAnyStaff() {
-      return hasRole(['klinik', 'dokter', 'apotek', 'admin', 'keuangan']);
+      return hasRole(['klinik', 'dokter', 'apotek', 'admin', 'keuangan', 'psa']);
     }
 
     function unchanged(field) {
@@ -85,12 +89,12 @@ service cloud.firestore {
     // jadi dijaga paling ketat.
     // ------------------------------------------------------------
     match /users/{uid} {
-      allow get: if isSignedIn() && (request.auth.uid == uid || isAdminKeuangan());
-      allow list: if isAdminKeuangan() || (isSignedIn() && !exists(/databases/$(database)/documents/users/$(request.auth.uid)));
+      allow get: if isSignedIn() && (request.auth.uid == uid || isAdminKeuanganPSA());
+      allow list: if isAdminKeuanganPSA() || (isSignedIn() && !exists(/databases/$(database)/documents/users/$(request.auth.uid)));
 
       // Membantu bootstrap: Izinkan user membuat profilnya sendiri saat mendaftar pertama kali.
       // Sekali dibuat, role & status tidak bisa diubah oleh dirinya sendiri (hanya admin/keuangan yang bisa).
-      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow create: if isSignedIn() && (request.auth.uid == uid || isAdminKeuangan());
       allow update: if isAdminKeuangan()
                     // admin/keuangan tetap tidak boleh menurunkan/menghapus role dirinya
                     // sendiri di request yang sama supaya tidak ada kondisi "tidak ada admin".
@@ -113,7 +117,7 @@ service cloud.firestore {
       allow update: if isApotekStaff()
                     && request.resource.data.stok is number
                     && request.resource.data.stok >= 0;
-      allow delete: if isAdminKeuangan();
+      allow delete: if isAdminKeuanganPSA();
     }
 
     // ------------------------------------------------------------
@@ -125,7 +129,7 @@ service cloud.firestore {
     match /transaksi/{trxId} {
       allow read: if isApotekStaff() || isKlinikStaff();
       allow create: if isApotekStaff() || isDokter();
-      allow update, delete: if isAdminKeuangan();
+      allow update, delete: if isAdminKeuanganPSA();
     }
 
     // ------------------------------------------------------------
@@ -134,8 +138,8 @@ service cloud.firestore {
     match /pembelian/{id} {
       allow read: if isApotekStaff();
       allow create: if isApotekStaff();
-      allow update: if isAdminKeuangan(); // koreksi data pembelian: admin/keuangan saja
-      allow delete: if isAdminKeuangan();
+      allow update: if isAdminKeuanganPSA(); // koreksi data pembelian: admin/keuangan/psa saja
+      allow delete: if isAdminKeuanganPSA();
     }
 
     // ------------------------------------------------------------
@@ -145,12 +149,12 @@ service cloud.firestore {
     match /retur/{id} {
       allow read: if isApotekStaff();
       allow create: if isApotekStaff();
-      // Hanya admin/keuangan yang boleh mengubah status jadi terkonfirmasi
+      // Hanya admin/keuangan/psa yang boleh mengubah status jadi terkonfirmasi
       // (yang memicu pengurangan stok obat terkait).
-      allow update: if isAdminKeuangan()
+      allow update: if isAdminKeuanganPSA()
                     || (isApotekStaff() && resource.data.status == 'pending'
                         && request.resource.data.status == 'pending');
-      allow delete: if isAdminKeuangan();
+      allow delete: if isAdminKeuanganPSA();
     }
 
     // ------------------------------------------------------------
@@ -159,12 +163,12 @@ service cloud.firestore {
     match /stockOpnameRequests/{id} {
       allow read: if isApotekStaff();
       allow create: if isApotekStaff();
-      allow update: if isAdminKeuangan();
-      allow delete: if isAdminKeuangan();
+      allow update: if isAdminKeuanganPSA();
+      allow delete: if isAdminKeuanganPSA();
     }
     match /stockOpnameHistory/{id} {
       allow read: if isApotekStaff();
-      allow create: if isAdminKeuangan();
+      allow create: if isAdminKeuanganPSA();
       allow update, delete: if false; // histori: append-only
     }
 
@@ -176,32 +180,17 @@ service cloud.firestore {
     match /pasien/{id} {
       allow read: if isKlinikStaff() || isApotekStaff();
       allow create, update: if isKlinikStaff();
-      // BARU: modul SatuSehat kini terbuka untuk semua akun (js/pengaturan/satusehat.js
-      // tab "Validasi NIK & Pasien"), termasuk staf apotek yang sebelumnya tidak
-      // termasuk isKlinikStaff() dan gagal PERMISSION_DENIED saat mengisi/mengunci
-      // NIK pasien. Apotek HANYA boleh mengubah field terkait validasi SatuSehat,
-      // bukan data medis/pribadi pasien lainnya.
-      allow update: if isApotekStaff()
-                    && request.resource.data.diff(resource.data).affectedKeys()
-                         .hasOnly(['nik', 'tanggalLahir', 'satusehatId', 'satusehatSyncAt']);
-      allow delete: if isAdminKeuangan();
+      allow delete: if isAdminKeuanganPSA();
     }
 
     match /rekamMedis/{id} {
       allow read: if isKlinikStaff() || isApotekStaff();
-      allow create, update: if isDokter() || isAdminKeuangan();
+      allow create, update: if isDokter() || isAdminKeuanganPSA();
       // Apotek boleh update HANYA field statusResep saat menyelesaikan transaksi resep.
       allow update: if isApotekStaff()
                     && request.resource.data.diff(resource.data).affectedKeys()
                          .hasOnly(['statusResep']);
-      // BARU: modul SatuSehat kini terbuka untuk semua akun (tab "Sync Kunjungan").
-      // Siapa pun staff aktif boleh mengirim/melepas link Encounter SatuSehat, tapi
-      // HANYA field terkait SatuSehat -- tidak bisa mengubah data medis rekam medis
-      // itu sendiri (keluhan/diagnosa tetap eksklusif milik dokter/admin di atas).
-      allow update: if isAnyStaff()
-                    && request.resource.data.diff(resource.data).affectedKeys()
-                         .hasOnly(['satusehatEncounterId', 'satusehatConditionId', 'satusehatSyncAt']);
-      allow delete: if isAdminKeuangan();
+      allow delete: if isAdminKeuanganPSA();
     }
 
     match /antrian/{id} {
@@ -211,7 +200,7 @@ service cloud.firestore {
       // Transaksi apotek gagal dimuat.
       allow read: if isKlinikStaff() || isApotekStaff();
       allow create, update: if isKlinikStaff();
-      allow delete: if isAdminKeuangan();
+      allow delete: if isAdminKeuanganPSA();
     }
 
     // ------------------------------------------------------------
@@ -220,13 +209,13 @@ service cloud.firestore {
     // ------------------------------------------------------------
     match /karyawan/{id} {
       allow read: if isAnyStaff();
-      allow create, update, delete: if hasRole(['keuangan']); // admin = view-only by design
+      allow create, update, delete: if hasRole(['keuangan', 'psa']); // admin = view-only by design
     }
 
     match /absensi/{id} {
       allow read: if isAnyStaff();
       allow create: if isAnyStaff();
-      allow update, delete: if isAdminKeuangan();
+      allow update, delete: if isAdminKeuangan() || hasRole(['psa']);
     }
 
     // ------------------------------------------------------------
@@ -241,32 +230,32 @@ service cloud.firestore {
     // hanya admin/keuangan.
     match /kasKeluar/{id} {
       allow read, create: if isApotekStaff();
-      allow update, delete: if isAdminKeuangan();
+      allow update, delete: if isAdminKeuangan() || hasRole(['psa']);
     }
     match /saldoAwal/{id}         { allow read, write: if isAdminKeuangan(); }
     // BUGFIX: sebelumnya "allow write: if hasRole(['keuangan'])" -> role 'admin' bisa BUKA
     // halaman Payroll (lihat guard role di js/keuangan/payroll.js init()) tapi tombol
     // "Bayarkan" akan gagal disimpan (permission-denied) karena rule tulis cuma izinkan
     // 'keuangan'. Diganti isAdminKeuangan() supaya konsisten dgn "admin full CRUD Keuangan".
-    match /payrollHistory/{id}    { allow read, write: if isAdminKeuangan(); }
+    match /payrollHistory/{id}    { allow read, write: if isAdminKeuangan() || hasRole(['psa']); }
     // BARU: menyimpan tanggal mulai periode pendapatan karyawan & pembagian hasil yang
     // BELUM dibayarkan (js/keuangan/payroll.js). Direset (mulai = besok) HANYA saat tombol
     // "Bayarkan" ditekan — TIDAK direset oleh perubahan pengaturan pembagian hasil (lihat
     // pengaturanPembagianHistory di atas), supaya akumulasi tetap dari terhitung s/d dibayarkan.
-    match /payrollPeriode/{id}    { allow read, write: if isAdminKeuangan(); }
-    match /piutangKaryawan/{id}   { allow read, write: if isAdminKeuangan(); }
-    match /thrTabungan/{id}       { allow read, write: if isAdminKeuangan(); }
+    match /payrollPeriode/{id}    { allow read, write: if isAdminKeuangan() || hasRole(['psa']); }
+    match /piutangKaryawan/{id}   { allow read, write: if isAdminKeuangan() || hasRole(['psa']); }
+    match /thrTabungan/{id}       { allow read, write: if isAdminKeuangan() || hasRole(['psa']); }
     // BUGFIX: sama seperti payrollHistory di atas — tombol "Bayarkan & Reset" THR di
     // js/keuangan/payroll.js bisa ditekan oleh admin, tapi write ditolak karena rule lama
     // cuma izinkan 'keuangan'.
-    match /thrPembayaranHistory/{id} { allow read, write: if isAdminKeuangan(); }
+    match /thrPembayaranHistory/{id} { allow read, write: if isAdminKeuangan() || hasRole(['psa']); }
     // BARU: pemasukan non-penjualan (mis. uang/kembalian yang DITERIMA dari supplier
     // saat retur tukar barang dikonfirmasi, selisih<0 & caraSelisih='tunai' —
     // lihat js/apotek/retur.js konfirmasiBarang()). Dipakai oleh
     // js/keuangan/laporanKeuangan.js untuk laporan Arus Kas.
     // Hanya dibuat lewat konfirmasi retur oleh admin/keuangan, jadi rule sama
-    // ketatnya dengan koleksi kas lain -> isAdminKeuangan() untuk semua operasi.
-    match /kasMasuk/{id} { allow read, write: if isAdminKeuangan(); }
+    // ketatnya dengan koleksi kas lain -> isAdminKeuanganPSA() untuk semua operasi.
+    match /kasMasuk/{id} { allow read, write: if isAdminKeuanganPSA(); }
 
     // ------------------------------------------------------------
     // CHAT GRUP — untuk diskusi saling tanya jawab semua user
@@ -274,7 +263,7 @@ service cloud.firestore {
     match /groupChat/{id} {
       allow read: if isActive();
       allow create: if isActive() && request.resource.data.senderId == request.auth.uid;
-      allow update, delete: if isActive() && (resource.data.senderId == request.auth.uid || isAdminKeuangan());
+      allow update, delete: if isActive() && (resource.data.senderId == request.auth.uid || isAdminKeuanganPSA());
     }
 
     // ------------------------------------------------------------
@@ -297,7 +286,7 @@ service cloud.firestore {
     // boleh membacanya.
     // ------------------------------------------------------------
     match /auditLog/{id} {
-      allow read: if isAdminKeuangan();
+      allow read: if isAdminKeuangan() || hasRole(['psa']);
       allow create: if isActive() && request.resource.data.olehUid == request.auth.uid;
       allow update, delete: if false;
     }
@@ -307,16 +296,10 @@ service cloud.firestore {
     // ------------------------------------------------------------
     match /pengaturan/antrianDisplay           { allow read: if true; allow write: if isAnyStaff(); }
     match /pengaturan/antrianDisplaySettings   { allow read: if true; allow write: if isAnyStaff(); }
-    match /pengaturan/profil                   { allow read: if isAnyStaff(); allow write: if isAdminKeuangan(); }
-    // BUGFIX PENTING: dokumen ini sebelumnya TIDAK punya rule sama sekali, jadi
-    // selalu kena default-deny di paling bawah file ini -> js/pengaturan/satusehat.js
-    // (db.collection('pengaturan').doc('satusehatSettings')) SELALU gagal baca/tulis
-    // walau sudah admin sekalipun. Modul SatuSehat sekarang terbuka untuk semua akun
-    // (lihat js/app.js menuStructure.utama), jadi baca diizinkan untuk semua staff
-    // aktif (supaya status koneksi & ringkasan bisa tampil), tapi kredensial
-    // (Client ID/Secret) hanya boleh ditulis oleh admin/keuangan.
-    match /pengaturan/satusehatSettings        { allow read: if isAnyStaff(); allow write: if isAdminKeuangan(); }
-    match /pengaturanGaji/{id}                 { allow read, write: if isAdminKeuangan(); }
+    match /pengaturan/profil                   { allow read: if isAnyStaff(); allow write: if isAdminKeuanganPSA(); }
+    match /pengaturan/satusehatSettings        { allow read, write: if isAdminKeuanganPSA(); }
+    match /pengaturan/landing                  { allow read: if true; allow write: if hasRole(['keuangan', 'psa']); }
+    match /pengaturanGaji/{id}                 { allow read, write: if isAdminKeuanganPSA(); }
     // BUGFIX: dibaca oleh js/apotek/transaksi.js (Promise.all) untuk hitung
     // margin resep & racik obat saat transaksi -> sebelumnya read dibatasi
     // isAdminKeuangan() saja, jadi ikut menjatuhkan seluruh halaman
@@ -331,22 +314,7 @@ service cloud.firestore {
     // sama sekali. Sekarang: create diizinkan (admin/keuangan), tapi tetap
     // append-only — tidak bisa diubah/dihapus setelah dibuat.
     match /pengaturanPembagianHistory/{id}     { allow read: if isAdminKeuangan(); allow create: if isAdminKeuangan(); allow update, delete: if false; }
-    match /masterTindakan/{id}                 { allow read: if isAnyStaff(); allow write: if isAdminKeuangan(); }
-
-    // ------------------------------------------------------------
-    // SATUSEHAT LOGS — riwayat aktivitas sinkronisasi ke Kemenkes
-    // (js/pengaturan/satusehat.js). Dulunya disimpan di localStorage
-    // per-browser; sekarang di Firestore supaya semua akun & perangkat
-    // melihat riwayat yang sama. Semua staff aktif boleh baca & menambah
-    // (create-only, mencatat aksinya sendiri via addLog()); hanya
-    // admin/keuangan yang boleh membersihkan riwayat (clearSimulatedLogs()).
-    // ------------------------------------------------------------
-    match /satusehatLogs/{id} {
-      allow read: if isAnyStaff();
-      allow create: if isAnyStaff();
-      allow update: if false;
-      allow delete: if isAdminKeuangan();
-    }
+    match /masterTindakan/{id}                 { allow read: if isAnyStaff(); allow write: if isAdminKeuangan() || hasRole(['psa']); }
 
     // ------------------------------------------------------------
     // DEFAULT DENY — apapun koleksi yang tidak terdaftar eksplisit

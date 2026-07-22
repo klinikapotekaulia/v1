@@ -157,8 +157,9 @@ window.AppKeuanganAkuntansi = {
                 var valNonPPN = 0, valPPNGross = 0;
                 if (b.items) {
                     b.items.forEach(function(it) {
-                        if (it.isPPN) valPPNGross += (it.jumlah * it.hargaBeli);
-                        else valNonPPN += (it.jumlah * it.hargaBeli);
+                        var qty = it.jumlah !== undefined ? it.jumlah : (it.qty !== undefined ? it.qty : 0);
+                        if (it.isPPN) valPPNGross += (qty * it.hargaBeli);
+                        else valNonPPN += (qty * it.hargaBeli);
                     });
                 }
                 
@@ -183,8 +184,8 @@ window.AppKeuanganAkuntansi = {
                 // FIX #5: Skip gaji & tunjangan di kasKeluar agar tidak double dengan penggajian
                 if (p.kategori === 'gaji' || p.kategori === 'tunjangan') return; 
                 
-                var akunBeban = '5-2300'; // Default Operasional
-                self.dataJurnal.push({ tanggal: p.tanggal, keterangan: p.keterangan, akunDebit: akunBeban, akunKredit: '', debit: p.jumlah || 0, kredit: 0, isManual: false, tipeJurnal: 'Otomatis' });
+                var akunDebit = p.akunDebit || '5-2300'; // Gunakan akun debit yang dipilih, default ke 5-2300 (Beban Operasional)
+                self.dataJurnal.push({ tanggal: p.tanggal, keterangan: p.keterangan, akunDebit: akunDebit, akunKredit: '', debit: p.jumlah || 0, kredit: 0, isManual: false, tipeJurnal: 'Otomatis' });
                 self.dataJurnal.push({ tanggal: p.tanggal, keterangan: 'Kas Keluar', akunDebit: '', akunKredit: '1-1100', debit: 0, kredit: p.jumlah || 0, isManual: false, tipeJurnal: 'Otomatis' });
             });
 

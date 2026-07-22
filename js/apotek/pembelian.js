@@ -63,7 +63,9 @@ window.AppApotekPembelian = {
         html += '<div class="flex justify-between items-center">';
         html += '<div>';
         html += '  <p class="text-sm text-slate-500">Total Item: <span id="beli-total-item" class="font-semibold text-gray-800 dark:text-white">0</span></p>';
-        html += '  <p class="text-lg font-bold text-gray-800 dark:text-white">Total Harga: <span id="beli-total-harga" class="text-primary-600">Rp 0</span></p>';
+        html += '  <p class="text-sm text-slate-500">Total Harga (Gross): <span id="beli-total-harga" class="font-semibold text-gray-800 dark:text-white">Rp 0</span></p>';
+        html += '  <p class="text-xs text-slate-400">- Est. PPN Masukan (11%): <span id="beli-total-ppn" class="font-medium text-slate-500">Rp 0</span></p>';
+        html += '  <p class="text-xs text-slate-400"># Nilai Bersih Pembelian: <span id="beli-nilai-bersih" class="font-medium text-slate-500">Rp 0</span></p>';
         html += '</div>';
         html += '<button onclick="AppApotekPembelian.simpan()" class="bg-primary-600 hover:bg-primary-700 text-white font-semibold px-8 py-3 rounded-xl shadow-lg transition-all text-sm flex items-center gap-2"><i data-lucide="save" class="w-4 h-4"></i> Simpan Pembelian</button>';
         html += '</div></div>';
@@ -138,21 +140,44 @@ window.AppApotekPembelian = {
     hitungTotal: function() {
         var container = document.getElementById('beli-items-container');
         var rows = container.querySelectorAll('[id^="beli-row-"]');
-        var totalItem = 0, totalHarga = 0;
+        var totalItem = 0, totalHarga = 0, totalPPN = 0;
         rows.forEach(row => {
             var idx = row.id.split('-').pop();
+            var obatId = document.getElementById('beli-obat-' + idx)?.value;
             var qty = parseInt(document.getElementById('beli-qty-' + idx)?.value) || 0;
             var harga = parseInt(document.getElementById('beli-harga-' + idx)?.value) || 0;
             var sub = qty * harga;
             document.getElementById('beli-sub-' + idx).textContent = Utils.formatRupiah(sub);
             totalItem += qty;
             totalHarga += sub;
+
+            var obat = this.obatList.find(o => o.id === obatId);
+            var isPPN = obat ? (obat.isPPN !== false) : true;
+            if (isPPN) {
+                totalPPN += Math.round(sub - (sub / 1.11));
+            }
         });
+        var nilaiBersih = totalHarga - totalPPN;
         document.getElementById('beli-total-item').textContent = totalItem;
         document.getElementById('beli-total-harga').textContent = Utils.formatRupiah(totalHarga);
+        document.getElementById('beli-total-ppn').textContent = Utils.formatRupiah(totalPPN);
+        document.getElementById('beli-nilai-bersih').textContent = Utils.formatRupiah(nilaiBersih);
     },
 
     simpan: function() {
+        // FIX (BUG KLIK DOBEL): sama seperti js/apotek/transaksi.js -- sebelumnya
+        // tombol "Simpan Pembelian" tidak di-disable & tidak ada flag guard, jadi
+        // klik dobel bisa membuat pembelian (dan penambahan stok) tersimpan dua kali.
+        if (this._isSaving) return;
+        this._isSaving = true;
+        var btnSimpan = document.querySelector('#pembelian-content button[onclick="AppApotekPembelian.simpan()"]');
+        if (btnSimpan) { btnSimpan.disabled = true; btnSimpan.classList.add('opacity-50', 'cursor-not-allowed'); }
+        var self = this;
+        var _resetGuard = function() {
+            self._isSaving = false;
+            if (btnSimpan) { btnSimpan.disabled = false; btnSimpan.classList.remove('opacity-50', 'cursor-not-allowed'); }
+        };
+
         var noFaktur = document.getElementById('beli-nofaktur').value.trim();
         var tgl = document.getElementById('beli-tgl').value;
         var supplier = document.getElementById('beli-supplier').value.trim();
@@ -161,11 +186,11 @@ window.AppApotekPembelian = {
 
         if (!noFaktur || !tgl || !supplier || !metode) {
             Utils.toast('Lengkapi semua data header', 'error');
-            return;
+            _resetGuard(); return;
         }
         if (metode === 'kredit' && !jatuhTempo) {
             Utils.toast('Jatuh tempo wajib diisi untuk pembelian kredit', 'error');
-            return;
+            _resetGuard(); return;
         }
 
         var items = [];
@@ -186,23 +211,31 @@ window.AppApotekPembelian = {
                     namaObat: obat ? obat.namaObat : '-',
                     kodeObat: obat ? obat.kodeObat : '-',
                     qty: qty || 0,
-                    hargaBeli: hargaBeli || 0
+                    hargaBeli: hargaBeli || 0,
+                    isPPN: obat ? (obat.isPPN !== false) : true
                 });
             }
         });
 
         if (itemInvalid) {
             Utils.toast('Qty minimal 1 dan Harga Beli tidak boleh negatif', 'error');
-            return;
+            _resetGuard(); return;
         }
 
         if (items.length === 0) {
             Utils.toast('Tambahkan minimal 1 obat', 'error');
-            return;
+            _resetGuard(); return;
         }
 
         Utils.toast('Menyimpan & mengupdate stok...', 'info');
         var totalHarga = items.reduce((sum, item) => sum + (item.qty * item.hargaBeli), 0);
+        var totalPPN = items.reduce((sum, item) => {
+            if (item.isPPN) {
+                var sub = item.qty * item.hargaBeli;
+                return sum + Math.round(sub - (sub / 1.11));
+            }
+            return sum;
+        }, 0);
 
         // FIX: simpan pembelian & update stok dalam satu batch atomik.
         var batch = db.batch();
@@ -216,13 +249,21 @@ window.AppApotekPembelian = {
             statusPelunasan: metode === 'kredit' ? 'belum_lunas' : 'lunas',
             items: items,
             totalHarga: totalHarga,
+            totalPPN: totalPPN,
+            nilaiBersih: totalHarga - totalPPN,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
+        // FIX (KONSISTENSI STOK GANDA): gabungkan (sum) qty per obatId dulu -- sama
+        // seperti pola yang sudah dipakai di js/apotek/transaksi.js & js/apotek/retur.js
+        // -- untuk jaga-jaga kalau obat yang sama tidak sengaja ditambahkan di lebih
+        // dari satu baris pada satu faktur pembelian.
+        var qtyPerObat = {};
         items.forEach(function(item) {
-            if (item.qty > 0) {
-                var obatRef = db.collection('obat').doc(item.obatId);
-                batch.update(obatRef, { stok: firebase.firestore.FieldValue.increment(item.qty) });
-            }
+            if (item.qty > 0) qtyPerObat[item.obatId] = (qtyPerObat[item.obatId] || 0) + item.qty;
+        });
+        Object.keys(qtyPerObat).forEach(function(obatId) {
+            var obatRef = db.collection('obat').doc(obatId);
+            batch.update(obatRef, { stok: firebase.firestore.FieldValue.increment(qtyPerObat[obatId]) });
         });
         batch.commit().then(() => {
             Utils.toast('Pembelian berhasil disimpan! Stok obat sudah bertambah.', 'success');
@@ -231,9 +272,11 @@ window.AppApotekPembelian = {
                 deskripsi: 'Pembelian dari ' + supplier + ' (Faktur ' + noFaktur + ', ' + metode + ')',
                 nominal: totalHarga
             });
+            _resetGuard();
             AppApotekPembelian.init();
         }).catch(err => {
             Utils.toast('Gagal menyimpan: ' + err.message, 'error');
+            _resetGuard();
         });
     },
 

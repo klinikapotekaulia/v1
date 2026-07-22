@@ -452,6 +452,19 @@ window.AppApotekRetur = {
     },
 
     simpanReturUang: function() {
+        // FIX (BUG KLIK DOBEL): sama seperti js/apotek/transaksi.js & pembelian.js --
+        // sebelumnya tidak ada guard, jadi klik dobel bisa membuat dua pengajuan retur
+        // identik tersimpan, yang keduanya berpotensi disetujui admin (stok terpotong dobel).
+        if (this._isSaving) return;
+        this._isSaving = true;
+        var btnSimpan = document.querySelector('#modal-container button[onclick="AppApotekRetur.simpanReturUang()"]');
+        if (btnSimpan) { btnSimpan.disabled = true; btnSimpan.classList.add('opacity-50', 'cursor-not-allowed'); }
+        var self = this;
+        var _resetGuard = function() {
+            self._isSaving = false;
+            if (btnSimpan) { btnSimpan.disabled = false; btnSimpan.classList.remove('opacity-50', 'cursor-not-allowed'); }
+        };
+
         var tgl      = document.getElementById('retur-tgl')?.value;
         var supplier = document.getElementById('retur-supplier')?.value.trim();
         var obatSel  = document.getElementById('retur-obat');
@@ -461,13 +474,15 @@ window.AppApotekRetur = {
         var alasan   = document.getElementById('retur-alasan')?.value;
 
         if (!tgl || !supplier || !obatId || qty <= 0) {
+            _resetGuard();
             return Utils.toast('Lengkapi semua field yang wajib!', 'error');
         }
 
         var obat = this.masterObat.find(function(o) { return o.id === obatId; });
-        if (!obat) return Utils.toast('Obat tidak ditemukan', 'error');
+        if (!obat) { _resetGuard(); return Utils.toast('Obat tidak ditemukan', 'error'); }
 
         if (qty > (obat.stok || 0)) {
+            _resetGuard();
             return Utils.toast('Qty retur (' + qty + ') melebihi stok tersedia (' + (obat.stok || 0) + ')!', 'error');
         }
 
@@ -490,10 +505,12 @@ window.AppApotekRetur = {
 
         db.collection('retur').add(obj).then(function() {
             Utils.toast('Pengajuan retur berhasil dibuat! Menunggu konfirmasi admin.', 'success');
+            _resetGuard();
             Utils.closeModal();
             AppApotekRetur.init();
         }).catch(function(err) {
             Utils.toast('Gagal: ' + err.message, 'error');
+            _resetGuard();
         });
         // CATATAN: stok baru dikurangi saat admin konfirmasi, bukan saat pengajuan dibuat.
     },
@@ -697,6 +714,18 @@ window.AppApotekRetur = {
     },
 
     simpanReturBarang: function() {
+        // FIX (BUG KLIK DOBEL): sama seperti simpanReturUang() di atas & pola yang
+        // sudah dipakai di js/apotek/transaksi.js dan pembelian.js.
+        if (this._isSaving) return;
+        this._isSaving = true;
+        var btnSimpan = document.querySelector('#modal-container button[onclick="AppApotekRetur.simpanReturBarang()"]');
+        if (btnSimpan) { btnSimpan.disabled = true; btnSimpan.classList.add('opacity-50', 'cursor-not-allowed'); }
+        var self = this;
+        var _resetGuard = function() {
+            self._isSaving = false;
+            if (btnSimpan) { btnSimpan.disabled = false; btnSimpan.classList.remove('opacity-50', 'cursor-not-allowed'); }
+        };
+
         var tgl      = document.getElementById('retur-tgl')?.value;
         var supplier = document.getElementById('retur-supplier')?.value.trim();
         var alasan   = document.getElementById('retur-alasan')?.value;
@@ -704,21 +733,24 @@ window.AppApotekRetur = {
         var barangMasuk  = this._kumpulkanBarang('masuk');
 
         if (!tgl || !supplier) {
+            _resetGuard();
             return Utils.toast('Lengkapi tanggal & supplier!', 'error');
         }
         if (barangKeluar.length === 0) {
+            _resetGuard();
             return Utils.toast('Tambahkan minimal 1 barang yang diretur (keluar)!', 'error');
         }
         if (barangMasuk.length === 0) {
+            _resetGuard();
             return Utils.toast('Tambahkan minimal 1 barang pengganti (masuk)!', 'error');
         }
         var invalid = barangKeluar.concat(barangMasuk).some(function(i) { return !i.obatId || i.qty <= 0; });
         if (invalid) {
+            _resetGuard();
             return Utils.toast('Pastikan setiap baris sudah memilih obat & qty minimal 1!', 'error');
         }
 
         // Validasi stok tersedia utk tiap barang keluar (per obat, digabung dulu kalau ada duplikat baris)
-        var self = this;
         var stokTerpakai = {};
         var stokKurang = null;
         barangKeluar.forEach(function(i) {
@@ -731,6 +763,7 @@ window.AppApotekRetur = {
             }
         });
         if (stokKurang) {
+            _resetGuard();
             return Utils.toast('Qty melebihi stok tersedia: ' + stokKurang, 'error');
         }
 
@@ -741,10 +774,10 @@ window.AppApotekRetur = {
         var caraSelisih = null, fakturHutangId = null, statusSelisih = null;
         if (selisih !== 0) {
             caraSelisih = document.getElementById('rb-cara-selisih')?.value || null;
-            if (!caraSelisih) return Utils.toast('Pilih cara penyelesaian selisih!', 'error');
+            if (!caraSelisih) { _resetGuard(); return Utils.toast('Pilih cara penyelesaian selisih!', 'error'); }
             if (caraSelisih === 'potong_hutang') {
                 fakturHutangId = document.getElementById('rb-faktur-hutang')?.value || null;
-                if (!fakturHutangId) return Utils.toast('Pilih faktur hutang yang akan disesuaikan!', 'error');
+                if (!fakturHutangId) { _resetGuard(); return Utils.toast('Pilih faktur hutang yang akan disesuaikan!', 'error'); }
             }
             statusSelisih = 'belum_diselesaikan';
         }
@@ -769,10 +802,12 @@ window.AppApotekRetur = {
 
         db.collection('retur').add(obj).then(function() {
             Utils.toast('Pengajuan retur tukar barang berhasil dibuat! Menunggu konfirmasi admin.', 'success');
+            _resetGuard();
             Utils.closeModal();
             AppApotekRetur.init();
         }).catch(function(err) {
             Utils.toast('Gagal: ' + err.message, 'error');
+            _resetGuard();
         });
         // CATATAN: stok & penyesuaian keuangan (hutang/kas) baru diproses saat admin konfirmasi.
     },

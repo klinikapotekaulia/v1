@@ -38,7 +38,7 @@ window.AppLaporanPengeluaran = {
     renderList: function() {
         var container = document.getElementById('pengeluaran-content');
         var role = window.currentRole || 'apotek';
-        var isApprover = (role === 'admin' || role === 'keuangan');
+        var isApprover = (role === 'admin' || role === 'keuangan' || role === 'psa');
 
         if (this.data.length === 0) {
             container.innerHTML = '<div class="bg-white dark:bg-slate-800 rounded-xl border p-8 text-center text-slate-400">Belum ada pengeluaran tercatat.</div>';
@@ -83,15 +83,22 @@ window.AppLaporanPengeluaran = {
         html += '<div class="flex items-center justify-between mb-5"><h3 class="text-lg font-semibold text-gray-800 dark:text-white">Ajukan Pengeluaran</h3><button onclick="Utils.closeModal()" class="p-1.5 hover:bg-slate-100 rounded-lg"><i data-lucide="x" class="w-5 h-5 text-slate-400"></i></button></div>';
         html += '<form id="form-pengeluaran" class="space-y-4">';
         
-        html += '<div><label class="block text-sm font-medium text-slate-700 mb-1">Kategori</label><select id="pe-kategori" class="w-full px-3 py-2 border border-slate-300 dark:bg-slate-700 dark:text-white rounded-lg text-sm"><option value="Harian">Harian (ATK, Operasional)</option><option value="Bulanan">Bulanan (PLN, PDAM, Wifi)</option></select></div>';
-        html += '<div><label class="block text-sm font-medium text-slate-700 mb-1">Keterangan *</label><input type="text" id="pe-ket" required class="w-full px-3 py-2 border border-slate-300 dark:bg-slate-700 dark:text-white rounded-lg text-sm" placeholder="Contoh: Beli kertas A4 2 rim"></div>';
-        html += '<div><label class="block text-sm font-medium text-slate-700 mb-1">Jumlah (Rp) *</label><input type="number" id="pe-jumlah" required min="0" class="w-full px-3 py-2 border border-slate-300 dark:bg-slate-700 dark:text-white rounded-lg text-sm" placeholder="50000"></div>';
+        html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Kategori / Akun Pengeluaran *</label>';
+        html += '<select id="pe-kategori" class="w-full px-3 py-2 border border-slate-300 dark:bg-slate-700 dark:text-white rounded-lg text-sm">';
+        html += '  <option value="5-2300" data-label="Beban Operasional">Beban Operasional (Listrik, Air, Wifi, ATK, Kebersihan)</option>';
+        html += '  <option value="1-1500" data-label="Perlengkapan & ATK">Perlengkapan & ATK (Aset - Pembelian Stock Plastik, Kertas Struk, dll)</option>';
+        html += '  <option value="1-2100" data-label="Peralatan Medis">Peralatan Medis (Aset Tetap - Tensi, Stetoskop, Tabung Oksigen, dll)</option>';
+        html += '  <option value="1-2200" data-label="Peralatan Apotek & Furniture">Peralatan Apotek & Furniture (Aset Tetap - Meja, Kursi, Lemari Kaca, AC, dll)</option>';
+        html += '  <option value="5-3000" data-label="Beban Lain-lain">Beban Lain-lain (Beban Non-Operasional)</option>';
+        html += '</select></div>';
+        html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Keterangan *</label><input type="text" id="pe-ket" required class="w-full px-3 py-2 border border-slate-300 dark:bg-slate-700 dark:text-white rounded-lg text-sm" placeholder="Contoh: Beli kertas A4 2 rim"></div>';
+        html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Jumlah (Rp) *</label><input type="number" id="pe-jumlah" required min="0" class="w-full px-3 py-2 border border-slate-300 dark:bg-slate-700 dark:text-white rounded-lg text-sm" placeholder="50000"></div>';
         
         html += '<div class="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-700">';
-        html += '<button type="button" onclick="Utils.closeModal()" class="px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Batal</button>';
+        html += '<button type="button" onclick="Utils.closeModal()" class="px-4 py-2.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">Batal</button>';
         html += '<button type="submit" class="px-6 py-2.5 text-sm bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg">Ajukan</button>';
         html += '</div></form></div>';
-
+ 
         Utils.openModal(html);
         setTimeout(() => {
             document.getElementById('form-pengeluaran').addEventListener('submit', function(e) {
@@ -100,11 +107,17 @@ window.AppLaporanPengeluaran = {
             });
         }, 100);
     },
-
+ 
     simpan: function() {
+        var catSelect = document.getElementById('pe-kategori');
+        var selectedOpt = catSelect.options[catSelect.selectedIndex];
+        var label = selectedOpt.getAttribute('data-label') || 'Operasional';
+        var akunDebit = catSelect.value;
+
         var obj = {
             tanggal: Utils.today(), // FIX: pakai tanggal lokal, bukan UTC
-            kategori: document.getElementById('pe-kategori').value,
+            kategori: label,
+            akunDebit: akunDebit,
             keterangan: document.getElementById('pe-ket').value.trim(),
             jumlah: parseFloat(document.getElementById('pe-jumlah').value) || 0,
             status: 'pending',

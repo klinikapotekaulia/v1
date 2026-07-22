@@ -3,7 +3,7 @@
  * Strategi: Cache shell statis, skip Firebase/CDN dynamic calls.
  */
 
-var CACHE_NAME = 'aulia-v14'; // FIX: ganti Firebase config ke project produksi klinikapotekaulia-61641
+var CACHE_NAME = 'aulia-v16'; // FIX v16: bump cache to clear stale landing.js cache
 
 var SHELL_URLS = [
     './',
@@ -60,6 +60,17 @@ self.addEventListener('fetch', function (event) {
     var url = new URL(event.request.url);
 
     // Jangan intercept Firebase, Google APIs, atau CDN eksternal
+    // FIX (BUG GRAFIK "Tren Penjualan Periode" BLANK): 'unpkg.com' sebelumnya TIDAK
+    // ada di daftar ini, padahal index.html memuat React, ReactDOM, & prop-types
+    // (dipakai grafik Tren Penjualan/Recharts) dari unpkg.com. Akibatnya request ke
+    // unpkg.com ikut "ditangkap" oleh fetch handler di bawah alih-alih dibiarkan lewat
+    // apa adanya seperti CDN lain -- kalau fetch lintas-origin itu gagal/lambat
+    // (paling sering terjadi tepat setelah migrasi domain, saat browser & SW registrasi
+    // ulang tanpa cache lama), tidak ada 'cached' fallback utk request pertama, request
+    // gagal total, window.React/ReactDOM tidak pernah ter-define, dan
+    // renderDailySalesChart() di js/dashboard.js retry selamanya tanpa pernah berhasil
+    // -> grafik selalu kosong. Menambahkan 'unpkg.com' di sini membuatnya konsisten
+    // dengan CDN lain (network-only, tidak diintervensi SW).
     var bypassHosts = [
         'firestore.googleapis.com',
         'identitytoolkit.googleapis.com',
@@ -69,6 +80,7 @@ self.addEventListener('fetch', function (event) {
         'cdn.jsdelivr.net',
         'cdn.sheetjs.com',
         'cdnjs.cloudflare.com',
+        'unpkg.com',
         'gstatic.com'
     ];
     for (var i = 0; i < bypassHosts.length; i++) {
@@ -82,7 +94,19 @@ self.addEventListener('fetch', function (event) {
                 var fetchPromise = fetch(event.request).then(function (response) {
                     if (response && response.status === 200 &&
                         (response.type === 'basic' || response.type === 'cors')) {
-                        cache.put(event.request, response.clone());
+                        // Jangan cache response HTML (index.html fallback) untuk file static non-HTML seperti .js atau .css
+                        var contentType = response.headers.get('content-type') || '';
+                        var isHtmlResponse = contentType.indexOf('text/html') !== -1;
+                        var isHtmlRequest = event.request.url.indexOf('.html') !== -1 || 
+                                            event.request.url === self.location.origin + '/' || 
+                                            event.request.url === self.location.origin + '/index.html' ||
+                                            event.request.url === self.location.origin + './';
+                        
+                        if (isHtmlResponse && !isHtmlRequest) {
+                            // Jangan simpan fallback index.html ke dalam cache untuk file .js/.css/gambar
+                        } else {
+                            cache.put(event.request, response.clone());
+                        }
                     }
                     return response;
                 }).catch(function () {

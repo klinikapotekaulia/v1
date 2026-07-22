@@ -14,12 +14,12 @@
 //    Ganti nilai di bawah dengan konfigurasi project Firebase Anda.
 // ============================================================
 const firebaseConfig = {
-  apiKey: "AIzaSyDXuiTRwHttekv5iy6rk8RJA_pVL25v-U4",
-  authDomain: "klinikapotekaulia-61641.firebaseapp.com",
-  projectId: "klinikapotekaulia-61641",
-  storageBucket: "klinikapotekaulia-61641.firebasestorage.app",
-  messagingSenderId: "857781555251",
-  appId: "1:857781555251:web:33dbb41f292026f9ef9346"
+  apiKey: "AIzaSyCuK8fZRlrU7296U8gmZZ73EdPtODxsNKA",
+  authDomain: "apotek-aulia-d0667.firebaseapp.com",
+  projectId: "apotek-aulia-d0667",
+  storageBucket: "apotek-aulia-d0667.firebasestorage.app",
+  messagingSenderId: "994675867657",
+  appId: "1:994675867657:web:61579147786fc683caf8d8"
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -66,6 +66,14 @@ window.Utils = {
         return 'Rp\u00a0' + (Number(num) || 0).toLocaleString('id-ID');
     },
 
+    formatAngka: function (num) {
+        return (Number(num) || 0).toLocaleString('id-ID');
+    },
+
+    formatNumber: function (num) {
+        return (Number(num) || 0).toLocaleString('id-ID');
+    },
+
     escapeHtml: function (text) {
         if (text === null || text === undefined) return '';
         var div = document.createElement('div');
@@ -99,6 +107,11 @@ window.Utils = {
 
     today: function () {
         return this.dateStr(new Date());
+    },
+
+    now: function () {
+        var d = new Date();
+        return this.dateStr(d) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
     },
 
     // Snackbar non-blocking (tidak pakai alert)
@@ -186,6 +199,7 @@ window.App = {
             menu_stockOpname: 'Stok Opname',
             menu_notifikasi: 'Notifikasi',
             menu_retur: 'Retur Obat',
+            menu_obat_terlaris: 'Ringkasan Obat Terlaris',
             menu_hutang: 'Hutang Usaha',
             menu_pengeluaran: 'Pengeluaran',
             menu_piutang: 'Piutang Karyawan',
@@ -204,6 +218,11 @@ window.App = {
             menu_users: 'Kelola Users',
             menu_display_antrian: 'Display Antrian',
             menu_satusehat: 'SatuSehat Kemenkes',
+            menu_landing: 'Edit Landing Page',
+            menu_online: 'User Online',
+            menu_voidlog: 'Void & Koreksi',
+            menu_tren_finansial: 'Tren Finansial YoY & MoM',
+            menu_stok_mati: 'Pengawasan Stok Mati',
 
             // General
             online: 'Online',
@@ -244,6 +263,7 @@ window.App = {
             menu_stockOpname: 'Stock Take',
             menu_notifikasi: 'Notifications',
             menu_retur: 'Medicine Returns',
+            menu_obat_terlaris: 'Top Selling Medicines',
             menu_hutang: 'Accounts Payable',
             menu_pengeluaran: 'Expenses',
             menu_piutang: 'Employee Receivables',
@@ -262,6 +282,11 @@ window.App = {
             menu_users: 'Manage Users',
             menu_display_antrian: 'Queue Display',
             menu_satusehat: 'SatuSehat Kemenkes',
+            menu_landing: 'Edit Landing Page',
+            menu_online: 'Online Users',
+            menu_voidlog: 'Voids & Corrections',
+            menu_tren_finansial: 'Financial Growth Trends',
+            menu_stok_mati: 'Dead Stock & Efficiency',
 
             // General
             online: 'Online',
@@ -320,6 +345,11 @@ window.App = {
             menu_users: 'Atur Pamaké',
             menu_display_antrian: 'Pintonan Antrean',
             menu_satusehat: 'SatuSehat Kemenkes',
+            menu_landing: 'Edit Landing Page',
+            menu_online: 'User Online',
+            menu_voidlog: 'Void & Koréksi',
+            menu_tren_finansial: 'Trén Finansial YoY & MoM',
+            menu_stok_mati: 'Pangawasan Stok Mati',
 
             // General
             online: 'Nyambung',
@@ -588,13 +618,6 @@ window.App = {
 var menuStructure = {
     utama: [
         { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard', module: 'dashboard' },
-        // DIPINDAH (permintaan user): SatuSehat Kemenkes sekarang tampil di Menu Utama,
-        // tepat di bawah Dashboard, dan otomatis terbuka untuk SEMUA akun (semua role
-        // sudah punya akses ke section 'utama' di roleAccess di bawah). Halaman itu
-        // sendiri tetap membatasi tab "Konfigurasi Kredensial" hanya untuk admin/keuangan
-        // (lihat js/pengaturan/satusehat.js canConfigure) supaya kredensial Kemenkes
-        // tidak bisa diubah sembarang akun, walau menunya terbuka untuk semua.
-        { id: 'satusehat', label: 'SatuSehat Kemenkes', icon: 'heart-pulse', module: 'pengaturan/satusehat' },
         { id: 'chat',      label: 'Diskusi & Chat', icon: 'message-square', module: 'chat' }
     ],
     klinik: [
@@ -606,6 +629,7 @@ var menuStructure = {
     apotek: [
         { id: 'transaksi',   label: 'Transaksi',    icon: 'shopping-cart',   module: 'apotek/transaksi'    },
         { id: 'obat',        label: 'Obat & Stok',  icon: 'pill',            module: 'apotek/obat'         },
+        { id: 'obat-terlaris', label: 'Ringkasan Obat Terlaris', icon: 'trending-up', module: 'apotek/obatTerlaris' },
         { id: 'pembelian',   label: 'Pembelian',    icon: 'truck',           module: 'apotek/pembelian'    },
         { id: 'stockOpname', label: 'Stok Opname',  icon: 'clipboard-check', module: 'apotek/stockOpname'  },
         { id: 'notifikasi',  label: 'Notifikasi',   icon: 'bell',            module: 'apotek/notifikasi'   },
@@ -620,7 +644,11 @@ var menuStructure = {
     ],
     manajemen: [
         { id: 'karyawan', label: 'Karyawan', icon: 'user-check',    module: 'manajemen/karyawan' },
-        { id: 'absensi',  label: 'Absensi',  icon: 'calendar-check', module: 'manajemen/absensi' }
+        { id: 'absensi',  label: 'Absensi',  icon: 'calendar-check', module: 'manajemen/absensi' },
+        { id: 'online',   label: 'User Online', icon: 'wifi',       module: 'manajemen/online' },
+        { id: 'voidlog',  label: 'Void & Koreksi', icon: 'shield-alert', module: 'manajemen/voidlog' },
+        { id: 'tren-finansial', label: 'Tren Finansial', icon: 'line-chart', module: 'manajemen/trenFinansial' },
+        { id: 'stok-mati', label: 'Pengawasan Stok', icon: 'package-x', module: 'manajemen/stokMati' }
     ],
     keuangan: [
         { id: 'payroll',           label: 'Payroll',             icon: 'calculator',     module: 'keuangan/payroll'          },
@@ -635,23 +663,34 @@ var menuStructure = {
         { id: 'gaji',      label: 'Pengaturan Gaji',  icon: 'wallet',      module: 'pengaturan/gaji'      },
         { id: 'users',     label: 'Kelola Users',     icon: 'user-cog',    module: 'pengaturan/users'     },
         // BARU: pengaturan logo, running text, video YouTube & tema untuk display.html (TV ruang tunggu)
-        { id: 'display-antrian', label: 'Display Antrian', icon: 'tv', module: 'pengaturan/displayAntrian' }
-        // CATATAN: SatuSehat Kemenkes dipindah ke Menu Utama (lihat menuStructure.utama)
-        // supaya terbuka untuk semua akun, bukan hanya yang punya akses ke Pengaturan.
+        { id: 'display-antrian', label: 'Display Antrian', icon: 'tv', module: 'pengaturan/displayAntrian' },
+        // SKELATAL FRAMEWORK: SatuSehat Kemenkes Integration
+        { id: 'satusehat', label: 'SatuSehat Kemenkes', icon: 'heart-pulse', module: 'pengaturan/satusehat' },
+        { id: 'landing', label: 'Edit Landing Page', icon: 'layout', module: 'pengaturan/landing' }
     ]
 };
 
 var roleAccess = {
-    klinik:   ['utama', 'klinik', 'manajemen.absensi'],
+    klinik:   ['utama', 'klinik', 'laporan.hutang', 'manajemen.absensi'],
     // FIX (permintaan user): role baru khusus akun Dokter. Akses menu sama dengan
     // Klinik, namun di dalam Antrian & Rekam Medis perilakunya dibedakan
     // (lihat js/klinik/antrian.js & js/klinik/rekamMedis.js) — hanya akun Dokter
     // yang bisa membuka & menyimpan Rekam Medis.
-    dokter:   ['utama', 'klinik', 'manajemen.absensi'],
-    apotek:   ['utama', 'apotek', 'laporan.pengeluaran', 'laporan.penjualanHarian', 'manajemen.absensi'],
+    dokter:   ['utama', 'klinik', 'laporan.hutang', 'manajemen.absensi'],
+    apotek:   ['utama', 'apotek', 'laporan.hutang', 'laporan.pengeluaran', 'laporan.penjualanHarian', 'manajemen.absensi'],
     // FIX (permintaan user): admin sekarang punya akses penuh (CRUD) ke modul Keuangan,
     // sementara modul Karyawan untuk admin dibuat view-only (lihat js/manajemen/karyawan.js).
-    admin:    ['utama', 'klinik', 'apotek', 'laporan', 'manajemen', 'pengaturan.profil', 'pengaturan.tindakan', 'pengaturan.display-antrian'],
+    // FIX BUG: array ini sebelumnya TIDAK menyertakan 'keuangan', padahal komentar di atas
+    // dan js/keuangan/payroll.js (yang sudah eksplisit mengizinkan role 'admin') menunjukkan
+    // niat aslinya admin bisa akses penuh -- akibatnya seluruh grup menu Keuangan (Payroll,
+    // Lap. Keuangan, Rangkuman Aktivitas, Akuntansi) tidak pernah muncul di sidebar admin.
+    admin:    ['utama', 'klinik', 'apotek', 'laporan', 'manajemen', 'keuangan', 'pengaturan.profil', 'pengaturan.tindakan', 'pengaturan.display-antrian', 'pengaturan.satusehat', 'pengaturan.landing'],
+    // FITUR BARU: akun PSA (Pemilik Sarana Apotek/Klinik). Akses lengkap kecuali: kelola user, pembagian hasil, akuntansi.
+    psa:      [
+        'utama', 'klinik', 'apotek', 'laporan', 'manajemen',
+        'keuangan.payroll', 'keuangan.laporan-keuangan', 'keuangan.rangkuman-bulanan',
+        'pengaturan.profil', 'pengaturan.tindakan', 'pengaturan.gaji', 'pengaturan.display-antrian', 'pengaturan.satusehat', 'pengaturan.landing'
+    ],
     keuangan: ['utama', 'klinik', 'apotek', 'laporan', 'manajemen', 'keuangan', 'pengaturan']
 };
 
@@ -683,6 +722,9 @@ function buildSidebarHtml(role) {
             var fullKey    = section.key + '.' + menu.id;
             var hasItem    = allowed.indexOf(section.key) !== -1 || allowed.indexOf(fullKey) !== -1;
             if (!hasItem) return;
+
+            // Memastikan menu_online dan voidlog hanya bisa diakses oleh psa dan keuangan
+            if ((menu.id === 'online' || menu.id === 'voidlog') && role !== 'psa' && role !== 'keuangan') return;
 
             // FITUR BARU: titik merah berkedip khusus menu Chat, menandakan ada
             // pesan diskusi baru yang belum dibuka akun ini. Lihat startChatNotifWatcher().
@@ -1017,6 +1059,91 @@ function stopChatNotifWatcher() {
     setChatUnreadBadge(false);
 }
 
+function startUserHeartbeat() {
+    var uid = window.currentUid || (firebase.auth().currentUser ? firebase.auth().currentUser.uid : null);
+    if (!uid) return;
+
+    stopUserHeartbeat();
+
+    function updateHeartbeat() {
+        var uidNow = window.currentUid || (firebase.auth().currentUser ? firebase.auth().currentUser.uid : null);
+        if (!uidNow) return;
+        
+        db.collection('users').doc(uidNow).update({
+            lastActive: firebase.firestore.FieldValue.serverTimestamp()
+        }).catch(function(err) {
+            console.warn('[Heartbeat] Gagal memperbarui status aktif:', err.message);
+        });
+    }
+
+    updateHeartbeat();
+    // Update setiap 20 detik
+    window.userHeartbeatInterval = setInterval(updateHeartbeat, 20000);
+}
+
+function stopUserHeartbeat() {
+    if (window.userHeartbeatInterval) {
+        clearInterval(window.userHeartbeatInterval);
+        window.userHeartbeatInterval = null;
+    }
+}
+
+// ============================================================
+// AUTO-LOGOUT MECHANISM (IDLE TRACKER - 15 MINUTES)
+// ============================================================
+var _idleTimer = null;
+var _idleTimeoutMs = 15 * 60 * 1000; // 15 menit
+var _lastActivityTime = 0;
+
+function handleUserActivity() {
+    var now = Date.now();
+    // Hanya perbarui timer setiap 5 detik untuk menghemat CPU (terutama untuk mousemove/scroll)
+    if (now - _lastActivityTime > 5000) {
+        _lastActivityTime = now;
+        resetIdleTimer();
+    }
+}
+
+function resetIdleTimer() {
+    if (_idleTimer) {
+        clearTimeout(_idleTimer);
+    }
+    _idleTimer = setTimeout(autoLogout, _idleTimeoutMs);
+}
+
+function autoLogout() {
+    Utils.toast('Sesi Anda telah berakhir karena tidak ada aktivitas selama 15 menit.', 'warning');
+    firebase.auth().signOut()
+        .then(function() {
+            console.log('[Idle Tracker] Auto-logout berhasil karena tidak aktif.');
+        })
+        .catch(function(err) {
+            console.error('[Idle Tracker] Gagal melakukan auto-logout:', err);
+        });
+}
+
+function startIdleTracker() {
+    stopIdleTracker();
+    _lastActivityTime = Date.now();
+    resetIdleTimer();
+
+    var activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    activityEvents.forEach(function(evt) {
+        window.addEventListener(evt, handleUserActivity, { passive: true });
+    });
+}
+
+function stopIdleTracker() {
+    if (_idleTimer) {
+        clearTimeout(_idleTimer);
+        _idleTimer = null;
+    }
+    var activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    activityEvents.forEach(function(evt) {
+        window.removeEventListener(evt, handleUserActivity);
+    });
+}
+
 // ============================================================
 // 7. BOOT APP (dipanggil setelah user terautentikasi)
 // ============================================================
@@ -1038,7 +1165,11 @@ function startApp(userRole, userName, userTema) {
     var elAvatar = document.getElementById('user-avatar');
 
     if (elName)   elName.textContent   = nameSafe;
-    if (elRole)   elRole.textContent   = roleSafe.charAt(0).toUpperCase() + roleSafe.slice(1);
+    if (elRole) {
+        var displayRole = roleSafe.charAt(0).toUpperCase() + roleSafe.slice(1);
+        if (roleSafe === 'psa') displayRole = 'PSA';
+        elRole.textContent = displayRole;
+    }
     if (elAvatar) elAvatar.textContent = (nameSafe.charAt(0) || '?').toUpperCase();
 
     // FITUR BARU: tema tampilan per-akun (mis. "win98"). Class ditaruh di <body>
@@ -1049,6 +1180,8 @@ function startApp(userRole, userName, userTema) {
     renderSidebar(userRole);
     navigateTo('dashboard', App.translate('menu_dashboard'));
     startChatNotifWatcher();
+    startUserHeartbeat();
+    startIdleTracker();
 }
 
 // ============================================================
@@ -1059,9 +1192,12 @@ function startApp(userRole, userName, userTema) {
 // ============================================================
 firebase.auth().onAuthStateChanged(function (user) {
     if (user) {
-        // Hapus overlay login jika masih ada
+        // Hapus overlay login & landing jika masih ada
         var overlay = document.getElementById('login-overlay');
         if (overlay) overlay.remove();
+        var landingOverlay = document.getElementById('landing-overlay');
+        if (landingOverlay) landingOverlay.remove();
+        if (window.AppLanding) window.AppLanding.isActive = false;
 
         // Ambil profil dari Firestore
         db.collection('users').doc(user.uid).get()
@@ -1110,11 +1246,19 @@ firebase.auth().onAuthStateChanged(function (user) {
             });
 
     } else {
-        // User belum login — tampilkan form login
-        // window.AppAuth didefinisikan di auth.js yang diload setelah app.js
+        // User belum login — tampilkan landing page terlebih dahulu
         stopChatNotifWatcher(); // FITUR BARU: hentikan pemantau notifikasi chat saat logout
+        stopUserHeartbeat();    // Hentikan heartbeat saat logout
+        stopIdleTracker();      // Hentikan pelacak keaktifan saat logout
         document.body.classList.remove('theme-win98'); // FITUR BARU: reset tema saat logout
-        if (window.AppAuth && typeof window.AppAuth.renderLogin === 'function') {
+        
+        // Bersihkan overlay login jika tersisa
+        var loginOverlay = document.getElementById('login-overlay');
+        if (loginOverlay) loginOverlay.remove();
+
+        if (window.AppLanding && typeof window.AppLanding.render === 'function') {
+            window.AppLanding.render();
+        } else if (window.AppAuth && typeof window.AppAuth.renderLogin === 'function') {
             window.AppAuth.renderLogin();
         }
         // Reset UI navbar

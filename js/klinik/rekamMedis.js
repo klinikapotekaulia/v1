@@ -19,7 +19,7 @@ window.AppKlinikRekamMedis = {
     init: function() {
         // FIX (permintaan user): Buka RM & simpan Rekam Medis khusus akun Dokter
         // (Admin/Keuangan tetap diberi akses untuk keperluan oversight/perbaikan data).
-        var allowedRoles = ['dokter', 'admin', 'keuangan'];
+        var allowedRoles = ['dokter', 'admin', 'keuangan', 'psa'];
         if (allowedRoles.indexOf(window.currentRole) === -1) {
             document.getElementById('rm-content').innerHTML = '<div class="bg-red-50 text-red-600 p-4 rounded-lg">Akses Ditolak. Halaman ini khusus akun Dokter.</div>';
             return;
@@ -224,6 +224,22 @@ window.AppKlinikRekamMedis = {
     },
 
     simpan: function() {
+        // FIX (BUG KLIK DOBEL): pola sama seperti js/apotek/transaksi.js,
+        // js/apotek/pembelian.js, js/apotek/retur.js -- sebelumnya tombol "Simpan
+        // Rekam Medis" tidak di-disable & tidak ada flag guard. Klik dobel bisa
+        // membuat 2 dokumen rekamMedis untuk kunjungan yang sama, dan karena tiap
+        // dokumen RM otomatis membuat entri resep (statusResep: 'menunggu'),
+        // pasien yang sama bisa muncul 2x di daftar "Resep Menunggu" Transaksi
+        // Apotek -- berisiko obat/tindakan tertagih dobel untuk 1 kunjungan.
+        if (this._isSaving) return;
+        this._isSaving = true;
+        var btnSimpan = document.querySelector('#form-rm button[type="submit"]');
+        if (btnSimpan) { btnSimpan.disabled = true; btnSimpan.classList.add('opacity-50', 'cursor-not-allowed'); }
+        var _resetGuard = function() {
+            AppKlinikRekamMedis._isSaving = false;
+            if (btnSimpan) { btnSimpan.disabled = false; btnSimpan.classList.remove('opacity-50', 'cursor-not-allowed'); }
+        };
+
         // Kumpulkan Tindakan
         var tindakanItems = [];
         var tindakanRows = document.querySelectorAll('[id^="rm-tindakan-"]');
@@ -262,7 +278,9 @@ window.AppKlinikRekamMedis = {
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         };
 
-        db.collection('rekamMedis').add(obj).then(function() {
+        var savedDocRefId;
+        db.collection('rekamMedis').add(obj).then(function(docRef) {
+            savedDocRefId = docRef.id;
             // FIX: tandai antrian sebagai selesai supaya RM tidak dibuat dua kali untuk kunjungan yang sama.
             var afterAntrian = obj.antrianId
                 ? db.collection('antrian').doc(obj.antrianId).update({
@@ -272,13 +290,110 @@ window.AppKlinikRekamMedis = {
                 : Promise.resolve();
             return afterAntrian;
         }).then(function() {
+            // JALANKAN AUTO SYNC SATUSEHAT JIKA DIAKTIFKAN
+            return db.collection('pengaturan').doc('satusehatSettings').get().then(function(ssDoc) {
+                if (ssDoc.exists) {
+                    var ssData = ssDoc.data();
+                    if (ssData.isEnabled && obj.pasienId) {
+                        return db.collection('pasien').doc(obj.pasienId).get().then(function(pasienDoc) {
+                            if (pasienDoc.exists) {
+                                var pData = pasienDoc.data();
+                                if (pData.satusehatId) {
+                                    var cId = ssData.clientId;
+                                    var cSecret = ssData.clientSecret;
+                                    var isConfigured = cId && cSecret;
+
+                                    if (isConfigured) {
+                                        return fetch('/api/satusehat/encounter/create', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                                clientId: cId,
+                                                clientSecret: cSecret,
+                                                env: ssData.env || 'sandbox',
+                                                patientId: pData.satusehatId,
+                                                patientName: pData.nama,
+                                                doctorName: obj.namaDokter || 'Dokter Umum',
+                                                diagnosa: obj.diagnosa || 'Pemeriksaan Umum',
+                                                organizationId: ssData.organizationId || '100023456',
+                                                locationId: ssData.locationId || 'f76b88b7-86c0-4286-9dc4-839e94cb02cb'
+                                            })
+                                        })
+                                        .then(function(res) { return res.json(); })
+                                        .then(function(resData) {
+                                            if (resData.success && resData.encounterId) {
+                                                // Save to logs localstorage
+                                                var savedLogs = localStorage.getItem('ss_simulated_logs');
+                                                var logs = savedLogs ? JSON.parse(savedLogs) : [];
+                                                logs.unshift({
+                                                    id: String(Date.now()),
+                                                    resource: 'Encounter',
+                                                    payloadId: resData.encounterId,
+                                                    status: 'Success',
+                                                    timestamp: new Date().toISOString(),
+                                                    message: 'Auto-sync: Kunjungan & Diagnosis ' + (obj.diagnosa || 'Pemeriksaan Umum') + ' terkirim otomatis.'
+                                                });
+                                                localStorage.setItem('ss_simulated_logs', JSON.stringify(logs));
+
+                                                return db.collection('rekamMedis').doc(savedDocRefId).update({
+                                                    satusehatEncounterId: resData.encounterId,
+                                                    satusehatConditionId: resData.conditionId || '',
+                                                    satusehatSyncAt: firebase.firestore.FieldValue.serverTimestamp()
+                                                });
+                                            } else {
+                                                var savedLogs = localStorage.getItem('ss_simulated_logs');
+                                                var logs = savedLogs ? JSON.parse(savedLogs) : [];
+                                                logs.unshift({
+                                                    id: String(Date.now()),
+                                                    resource: 'Encounter',
+                                                    payloadId: 'Error',
+                                                    status: 'Failed',
+                                                    timestamp: new Date().toISOString(),
+                                                    message: 'Auto-sync gagal: ' + (resData.message || 'Error API Kemenkes')
+                                                });
+                                                localStorage.setItem('ss_simulated_logs', JSON.stringify(logs));
+                                            }
+                                        }).catch(function(err) {
+                                            console.error('Error auto-sync SatuSehat:', err);
+                                        });
+                                    } else {
+                                        // Sandbox simulation
+                                        var simEncounterId = 'enc-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+                                        var simConditionId = 'cond-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+                                        
+                                        var savedLogs = localStorage.getItem('ss_simulated_logs');
+                                        var logs = savedLogs ? JSON.parse(savedLogs) : [];
+                                        logs.unshift({
+                                            id: String(Date.now()),
+                                            resource: 'Encounter',
+                                            payloadId: simEncounterId,
+                                            status: 'Success',
+                                            timestamp: new Date().toISOString(),
+                                            message: 'Auto-sync (Simulasi): Kunjungan & Diagnosis (' + (obj.diagnosa || 'Pemeriksaan Umum') + ') terkirim otomatis.'
+                                        });
+                                        localStorage.setItem('ss_simulated_logs', JSON.stringify(logs));
+
+                                        return db.collection('rekamMedis').doc(savedDocRefId).update({
+                                            satusehatEncounterId: simEncounterId,
+                                            satusehatConditionId: simConditionId,
+                                            satusehatSyncAt: firebase.firestore.FieldValue.serverTimestamp()
+                                        });
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+        }).then(function() {
             Utils.toast('Rekam medis berhasil disimpan!', 'success');
+            _resetGuard();
             if (obj.antrianId) {
                 navigateTo('klinik/antrian', 'Antrian');
             } else {
                 document.getElementById('rm-content').innerHTML = '<div class="bg-white dark:bg-slate-800 rounded-xl border p-8 text-center text-green-600"><i data-lucide="check-circle" class="w-12 h-12 mx-auto mb-3"></i><p class="font-semibold">Data Berhasil Disimpan</p></div>';
                 lucide.createIcons();
             }
-        }).catch(err => Utils.toast('Gagal menyimpan: ' + err.message, 'error'));
+        }).catch(err => { Utils.toast('Gagal menyimpan: ' + err.message, 'error'); _resetGuard(); });
     }
 };

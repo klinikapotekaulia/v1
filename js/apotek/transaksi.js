@@ -112,7 +112,9 @@ window.AppApotekTransaksi = {
         
         // Detail Total
         html += '    <div class="space-y-1 text-sm w-full lg:w-auto">';
-        html += '      <div class="flex justify-between gap-8"><span class="text-slate-500">Total Obat:</span><span id="trx-total-obat" class="font-medium text-gray-800 dark:text-white">Rp 0</span></div>';
+        html += '      <div class="flex justify-between gap-8"><span class="text-slate-500">Total Obat (Gross):</span><span id="trx-total-obat" class="font-medium text-gray-800 dark:text-white">Rp 0</span></div>';
+        html += '      <div class="flex justify-between gap-8 text-xs pl-4"><span class="text-slate-400">- Est. PPN Keluaran (11%):</span><span id="trx-ppn-keluaran" class="font-medium text-slate-500">Rp 0</span></div>';
+        html += '      <div class="flex justify-between gap-8 text-xs pl-4"><span class="text-slate-400"># Nilai Bersih Obat:</span><span id="trx-nilai-bersih" class="font-medium text-slate-500">Rp 0</span></div>';
         html += '      <div class="flex justify-between gap-8"><span class="text-slate-500">Total Racik:</span><span id="trx-total-racik" class="font-medium text-teal-600">Rp 0</span></div>';
         html += '      <div class="flex justify-between gap-8"><span class="text-slate-500">Tindakan & Jasa:</span><span id="trx-total-tindakan" class="font-medium text-purple-600">Rp 0</span></div>';
         html += '      <div class="flex justify-between gap-8"><span class="text-slate-500">Jasa Resep:</span><span id="trx-jasa-resep" class="font-medium text-gray-800 dark:text-white">-</span></div>';
@@ -416,17 +418,25 @@ window.AppApotekTransaksi = {
         var rows = container.querySelectorAll('[id^="trx-row-"]');
         var totalObat = 0;
         var totalRacik = 0;
+        var totalPPNKeluaran = 0;
         var cfg = this.pengaturan;
         var nilaiRacikConfig = (cfg && cfg.racikObat && cfg.racikObat.nilai) ? cfg.racikObat.nilai : 0;
 
         rows.forEach(function(row) {
             var idx = row.id.split('-').pop();
+            var obatId = document.getElementById('trx-obat-' + idx)?.value;
             var qty = parseInt(document.getElementById('trx-qty-' + idx)?.value) || 0;
             var harga = parseInt(document.getElementById('trx-harga-' + idx)?.value) || 0;
             var sub = qty * harga;
             var subEl = document.getElementById('trx-sub-' + idx);
             if (subEl) subEl.textContent = Utils.formatRupiah(sub);
             totalObat += sub;
+
+            var obat = self.masterObat.find(function(o) { return o.id === obatId; });
+            var isPPN = obat ? (obat.isPPN !== false) : true;
+            if (isPPN) {
+                totalPPNKeluaran += Math.round(sub - (sub / 1.11));
+            }
 
             if (self.tipe === 'resep_klinik' || self.tipe === 'resep_luar') {
                 var racikEl = document.getElementById('trx-racik-' + idx);
@@ -470,6 +480,8 @@ window.AppApotekTransaksi = {
         var pembulatan = totalRounded - totalRaw;
 
         document.getElementById('trx-total-obat').textContent = Utils.formatRupiah(totalObat);
+        document.getElementById('trx-ppn-keluaran').textContent = Utils.formatRupiah(totalPPNKeluaran);
+        document.getElementById('trx-nilai-bersih').textContent = Utils.formatRupiah(totalObat - totalPPNKeluaran);
         document.getElementById('trx-total-racik').textContent = totalRacik > 0 ? Utils.formatRupiah(totalRacik) : '-';
         document.getElementById('trx-total-tindakan').textContent = totalTindakan > 0 ? Utils.formatRupiah(totalTindakan) : '-';
         document.getElementById('trx-jasa-resep').textContent = jasaResep > 0 ? Utils.formatRupiah(jasaResep) : '-';
@@ -481,17 +493,32 @@ window.AppApotekTransaksi = {
     simpan: function() {
         var self = this;
 
+        // FIX (BUG KLIK DOBEL): sebelumnya tombol "Proses & Simpan" tidak pernah
+        // di-disable dan tidak ada flag guard, jadi kalau kasir klik 2x dengan cepat
+        // (koneksi lambat / tap ganda di HP-tablet), dua transaksi terpisah bisa
+        // tersimpan untuk 1 kali penjualan -- stok berkurang dobel & pendapatan
+        // tercatat dobel. Pola guard ini sudah dipakai di js/keuangan/payroll.js
+        // ("cegah klik dobel"), sekarang diterapkan juga di sini.
+        if (this._isSaving) return;
+        this._isSaving = true;
+        var btnSimpan = document.querySelector('#trx-content button[onclick="AppApotekTransaksi.simpan()"]');
+        if (btnSimpan) { btnSimpan.disabled = true; btnSimpan.classList.add('opacity-50', 'cursor-not-allowed'); }
+        var _resetGuard = function() {
+            self._isSaving = false;
+            if (btnSimpan) { btnSimpan.disabled = false; btnSimpan.classList.remove('opacity-50', 'cursor-not-allowed'); }
+        };
+
         if (this.tipe === 'resep_luar') {
             var dokterLuarVal = document.getElementById('trx-dokter-luar-id').value.trim();
             if (!dokterLuarVal) {
-                Utils.toast('Nama dokter pemberi resep wajib diisi', 'error'); return;
+                Utils.toast('Nama dokter pemberi resep wajib diisi', 'error'); _resetGuard(); return;
             }
             if (dokterLuarVal === '__LAINNYA__' && !document.getElementById('trx-dokter-luar-manual').value.trim()) {
-                Utils.toast('Nama dokter/puskesmas wajib diisi', 'error'); return;
+                Utils.toast('Nama dokter/puskesmas wajib diisi', 'error'); _resetGuard(); return;
             }
         }
         if (this.tipe === 'resep_klinik' && !document.getElementById('trx-resep-id').value) {
-            Utils.toast('Pilih resep klinik yang akan diproses', 'error'); return;
+            Utils.toast('Pilih resep klinik yang akan diproses', 'error'); _resetGuard(); return;
         }
 
         var items = [];
@@ -512,7 +539,8 @@ window.AppApotekTransaksi = {
 
             items.push({
                 obatId: obatId, namaObat: obat.namaObat || '-', kodeObat: obat.kodeObat || '-',
-                satuan: obat.satuan || '-', hargaJual: hargaJual, hargaBeli: obat.hpp || 0, jumlah: jumlah
+                satuan: obat.satuan || '-', hargaJual: hargaJual, hargaBeli: obat.hpp || 0, jumlah: jumlah,
+                isPPN: obat.isPPN !== false
             });
 
             if (self.tipe === 'resep_klinik' || self.tipe === 'resep_luar') {
@@ -523,7 +551,7 @@ window.AppApotekTransaksi = {
             }
         });
 
-        if (items.length === 0) { Utils.toast('Tambahkan minimal 1 obat', 'error'); return; }
+        if (items.length === 0) { Utils.toast('Tambahkan minimal 1 obat', 'error'); _resetGuard(); return; }
 
         // Kumpulkan Tindakan (SERTAKAN MODAL NYA!)
         var tindakanItemsFinal = [];
@@ -594,6 +622,14 @@ window.AppApotekTransaksi = {
         var pembulatan = totalRounded - totalRaw;
         var metodeBayar = document.getElementById('trx-metode-bayar').value;
 
+        var totalPPNKeluaran = 0;
+        items.forEach(function(item) {
+            if (item.isPPN !== false) {
+                var sub = item.jumlah * item.hargaJual;
+                totalPPNKeluaran += Math.round(sub - (sub / 1.11));
+            }
+        });
+
         var obj = {
             tipe: this.tipe,
             tanggal: Utils.today(), // FIX KRITIS: sebelumnya pakai UTC, transaksi dini hari (00:00-07:00 WIB) tersimpan dengan tanggal KEMARIN sehingga tidak muncul di laporan/dashboard "hari ini"
@@ -611,6 +647,8 @@ window.AppApotekTransaksi = {
             pembulatan: pembulatan,
             totalAkhir: totalRounded,
             metodeBayar: metodeBayar,
+            totalPPN: totalPPNKeluaran,
+            nilaiBersih: totalRounded - totalPPNKeluaran,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         };
 
@@ -628,34 +666,77 @@ window.AppApotekTransaksi = {
         // sehingga pengecekan stok selalu berdasarkan data terbaru (tidak stale).
         var trxRef = db.collection('transaksi').doc();
 
+        // FIX (BUG STOK GANDA): sebelumnya setiap baris item ditangani satu-per-satu,
+        // sehingga kalau obat yang SAMA muncul di lebih dari satu baris (mis. kasir
+        // menambahkan Paracetamol di baris 1 & baris 3), kedua baris tsb membaca stok
+        // AWAL yang sama lalu masing-masing menghitung "stokBaru" dari angka awal itu
+        // -- padahal keduanya menulis ke dokumen obat yang sama, jadi tx.update() kedua
+        // menimpa hasil tx.update() pertama (bukan terakumulasi). Akibatnya stok yang
+        // tersimpan hanya terpotong utk SALAH SATU baris, bukan total gabungan
+        // keduanya (data stok jadi lebih besar dari yang seharusnya / bisa oversell).
+        // Perbaikan: gabungkan (sum) jumlah per obatId dulu -- sama seperti pola yang
+        // sudah dipakai di js/apotek/retur.js (deltaMap) -- baru divalidasi & ditulis
+        // sekali per obatId.
+        var qtyPerObat = {};
+        items.forEach(function(item) {
+            qtyPerObat[item.obatId] = (qtyPerObat[item.obatId] || 0) + item.jumlah;
+        });
+        var obatIdsUnik = Object.keys(qtyPerObat);
+
+        // FIX (BUG RESEP DOBEL): sebelumnya statusResep rekamMedis langsung ditulis
+        // 'selesai' TANPA dibaca/divalidasi dulu di dalam transaksi (beda dengan stok
+        // obat yang sudah divalidasi dengan benar di atas). Kalau simpan() ini
+        // ke-trigger dua kali untuk resep yang sama (klik dobel sebelum ada guard,
+        // atau dua tab/sesi kasir yang masih menampilkan resep yang sama karena
+        // resepList tidak real-time), resep bisa tertagih & "terhabiskan" dua kali.
+        // Sekarang statusResep ikut dibaca & divalidasi di dalam transaksi yang sama.
+        var resepRef = (self.tipe === 'resep_klinik' && obj.resepId) ? db.collection('rekamMedis').doc(obj.resepId) : null;
+
         db.runTransaction(function(tx) {
             // 1) BACA semua dokumen obat yang terlibat TERLEBIH DAHULU (wajib di Firestore:
             //    semua read harus selesai sebelum write pertama dalam satu transaksi).
-            var obatRefs = items.map(function(item) {
-                return db.collection('obat').doc(item.obatId);
+            var obatRefs = obatIdsUnik.map(function(obatId) {
+                return db.collection('obat').doc(obatId);
             });
+            var reads = obatRefs.map(function(ref) { return tx.get(ref); });
+            if (resepRef) reads.push(tx.get(resepRef));
 
-            return Promise.all(obatRefs.map(function(ref) { return tx.get(ref); }))
-                .then(function(snaps) {
-                    // 2) VALIDASI: pastikan setiap obat masih ada & stoknya cukup.
-                    //    Jika tidak, batalkan seluruh transaksi (throw) -- tidak ada
-                    //    perubahan sebagian (all-or-nothing).
+            return Promise.all(reads)
+                .then(function(allSnaps) {
+                    var snaps = allSnaps.slice(0, obatRefs.length);
+                    if (resepRef) {
+                        var resepSnap = allSnaps[obatRefs.length];
+                        if (!resepSnap.exists) {
+                            throw new Error('Resep klinik terkait tidak ditemukan (mungkin sudah dihapus).');
+                        }
+                        var statusResepSaatIni = resepSnap.data().statusResep;
+                        if (statusResepSaatIni && statusResepSaatIni !== 'menunggu') {
+                            throw new Error('Resep ini sudah diproses/ditagih sebelumnya oleh transaksi lain.');
+                        }
+                    }
+                    // 2) VALIDASI: pastikan setiap obat masih ada & stok TOTAL (gabungan semua
+                    //    baris obat yang sama) cukup. Jika tidak, batalkan seluruh transaksi
+                    //    (throw) -- tidak ada perubahan sebagian (all-or-nothing).
                     var updates = [];
-                    for (var i = 0; i < items.length; i++) {
-                        var item = items[i];
+                    for (var i = 0; i < obatIdsUnik.length; i++) {
+                        var obatId = obatIdsUnik[i];
                         var snap = snaps[i];
+                        var totalJumlah = qtyPerObat[obatId];
+                        // Nama obat untuk pesan error (ambil dari baris item pertama yang cocok)
+                        var namaObatRef = items.find(function(it) { return it.obatId === obatId; });
+                        var namaObat = namaObatRef ? namaObatRef.namaObat : obatId;
 
                         if (!snap.exists) {
-                            throw new Error('Obat "' + item.namaObat + '" tidak ditemukan (mungkin sudah dihapus).');
+                            throw new Error('Obat "' + namaObat + '" tidak ditemukan (mungkin sudah dihapus).');
                         }
 
                         var stokSaatIni = snap.data().stok || 0;
-                        if (stokSaatIni < item.jumlah) {
-                            throw new Error('Stok "' + item.namaObat + '" tidak cukup. Tersisa ' +
-                                stokSaatIni + ', dibutuhkan ' + item.jumlah + '.');
+                        if (stokSaatIni < totalJumlah) {
+                            throw new Error('Stok "' + namaObat + '" tidak cukup. Tersisa ' +
+                                stokSaatIni + ', dibutuhkan ' + totalJumlah + '.');
                         }
 
-                        updates.push({ ref: obatRefs[i], stokBaru: stokSaatIni - item.jumlah });
+                        updates.push({ ref: obatRefs[i], stokBaru: stokSaatIni - totalJumlah });
                     }
 
                     // 3) TULIS: simpan transaksi + kurangi stok obat, semua atomik.
@@ -667,18 +748,20 @@ window.AppApotekTransaksi = {
                         tx.update(u.ref, { stok: u.stokBaru });
                     });
 
-                    if (self.tipe === 'resep_klinik' && obj.resepId) {
-                        tx.update(db.collection('rekamMedis').doc(obj.resepId), { statusResep: 'selesai' });
+                    if (resepRef) {
+                        tx.update(resepRef, { statusResep: 'selesai' });
                     }
                 });
         }).then(function() {
             obj.id = trxRef.id;
             Utils.toast('Transaksi berhasil! Stok obat dikurangi.', 'success');
             self.cetakStruk(obj, printWindow); // KIRIM WINDOW YANG SUDAH DIBUKA KE FUNGSI CETAK
+            _resetGuard();
             AppApotekTransaksi.init();
         }).catch(function(err) {
             Utils.toast('Gagal menyimpan: ' + err.message, 'error');
             if (printWindow) printWindow.close(); // Tutup window kalau transaksinya gagal
+            _resetGuard();
         });
     },
 
@@ -695,6 +778,19 @@ window.AppApotekTransaksi = {
         
         db.collection('pengaturan').doc('profil').get().then(function(doc) {
             var p = doc.exists ? doc.data() : {};
+            
+            // JIKA printer termal Bluetooth terhubung, cetak langsung via Bluetooth!
+            if (window.ThermalPrinter && window.ThermalPrinter.isConnected()) {
+                window.ThermalPrinter.printReceipt(data, p);
+                
+                // Jika otomatis cetak aktif, tutup window browser standard dan tidak perlu dialog print browser
+                if (window.ThermalPrinter.isAutoPrint) {
+                    if (w) {
+                        w.close();
+                        return;
+                    }
+                }
+            }
             
             // Fallback values bila record belum ada atau kosong
             var namaInstansi = p.nama || 'Aulia Apotek Klinik';
@@ -724,6 +820,7 @@ window.AppApotekTransaksi = {
             
             var html = '<html><head><title>Struk Transaksi</title>';
             html += '<style>';
+            html += '@media print { .no-print { display: none !important; } }';
             html += 'body { font-family: "Courier New", monospace; font-size: ' + strukUkuranFont + '; width: ' + strukLebar + '; margin: 0; padding: 10px; color: #000; }';
             html += 'h2, h3, p { margin: 0; padding: 0; text-align: center; }';
             html += 'hr { border-top: 1px dashed #000; margin: 8px 0; }';
@@ -737,6 +834,14 @@ window.AppApotekTransaksi = {
             html += '.flex-logo.left { justify-content: flex-start; }';
             html += '.flex-logo.right { justify-content: flex-end; }';
             html += '</style></head><body>';
+            
+            // JIKA printer termal Bluetooth terhubung, tampilkan tombol aksi manual di popup
+            if (window.ThermalPrinter && window.ThermalPrinter.isConnected()) {
+                html += '<div class="no-print" style="background:#eff6ff; border: 1px solid #bfdbfe; padding:8px; margin-bottom:12px; border-radius:6px; display:flex; gap:6px; justify-content:center; align-items:center;">';
+                html += '  <button onclick="window.opener.ThermalPrinter.printReceipt(' + JSON.stringify(data).replace(/"/g, '&quot;') + ', ' + JSON.stringify(p).replace(/"/g, '&quot;') + ');" style="background:#2563eb; color:white; border:none; padding:6px 12px; border-radius:4px; font-family:sans-serif; font-size:11px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:4px;">🔌 Cetak Bluetooth</button>';
+                html += '  <button onclick="window.print()" style="background:#475569; color:white; border:none; padding:6px 12px; border-radius:4px; font-family:sans-serif; font-size:11px; font-weight:bold; cursor:pointer;">📄 Cetak Biasa</button>';
+                html += '</div>';
+            }
             
             // 1. Logo
             if (tampilkanLogo) {
@@ -810,7 +915,11 @@ window.AppApotekTransaksi = {
             if (f2) html += '<p>' + Utils.escapeHtml(f2) + '</p>';
             if (fRetur) html += '<p style="font-style: italic; margin-top: 4px;">* ' + Utils.escapeHtml(fRetur) + ' *</p>';
             
-            html += '<script>window.onload = function() { window.print(); }<\/script>';
+            if (window.ThermalPrinter && window.ThermalPrinter.isConnected()) {
+                // Jangan panggil window.print() otomatis, agar user bisa memilih "Cetak Bluetooth" atau "Cetak Biasa" di tombol atas.
+            } else {
+                html += '<script>window.onload = function() { window.print(); }<\/script>';
+            }
             html += '</body></html>';
             
             // Re-open/clear the document and write the real content
@@ -835,7 +944,11 @@ window.AppApotekTransaksi = {
             html += '</table><hr>';
             html += '<table><tr class="bold"><td>TOTAL</td><td class="right">' + Utils.formatRupiah(data.totalAkhir) + '</td></tr></table><hr>';
             html += '<p>Terima Kasih</p><p>Semoga Lekas Sembuh</p>';
-            html += '<script>window.onload = function() { window.print(); }<\/script></body></html>';
+            if (window.ThermalPrinter && window.ThermalPrinter.isConnected()) {
+                html += '</body></html>';
+            } else {
+                html += '<script>window.onload = function() { window.print(); }<\/script></body></html>';
+            }
             
             w.document.open();
             w.document.write(html);

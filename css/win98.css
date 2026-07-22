@@ -1,296 +1,157 @@
-/**
- * css/win98.css
- * TEMA BARU: Vaporwave — Neon Gradient & Glassmorphism
- * Terinspirasi dari desain UI modern bertema neon, gradasi futuristik, dan panel kaca.
- * Hanya aktif untuk akun yang pilihan temanya diset ke "win98" (Vaporwave).
- */
+/* ============================================================
+   Vaporwave — Neon Gradient Theme (theme-win98)
+   ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-
-.theme-win98, .theme-win98 * {
-    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif !important;
+body.theme-win98 {
+  background: radial-gradient(circle at 50% 50%, #1e0b36 0%, #0c0214 100%) !important;
+  color: #f1e9ff !important;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif !important;
 }
 
-/* ── Background Utama: Gradasi Neon & Grid Futuristik ── */
-.theme-win98 {
-    background: linear-gradient(135deg, #0b042b 0%, #15093b 35%, #4c0757 75%, #7e0542 100%) !important;
-    background-image: 
-        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-        linear-gradient(135deg, #0b042b 0%, #15093b 35%, #4c0757 75%, #7e0542 100%) !important;
-    background-size: 30px 30px, 30px 30px, 100% 100% !important;
-    background-attachment: fixed !important;
-    color: #f8fafc !important;
+/* Sidebar and Panel Overrides */
+body.theme-win98 aside,
+body.theme-win98 header,
+body.theme-win98 main,
+body.theme-win98 #sidebar,
+body.theme-win98 #mobile-sidebar {
+  background-color: rgba(18, 5, 34, 0.9) !important;
+  border-color: #ec4899 !important; /* Hot pink borders */
 }
 
-/* ── Panel Utama & Kartu (Glassmorphism Transparan) ── */
-.theme-win98 #sidebar,
-.theme-win98 #mobile-sidebar,
-.theme-win98 header,
-.theme-win98 .bg-white,
-.theme-win98 .dark\:bg-slate-800,
-.theme-win98 .bg-slate-50,
-.theme-win98 .dark\:bg-slate-900,
-.theme-win98 .card {
-    background: rgba(18, 11, 46, 0.6) !important;
-    backdrop-filter: blur(20px) !important;
-    -webkit-backdrop-filter: blur(20px) !important;
-    color: #f1f5f9 !important;
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
-    box-shadow: 0 10px 32px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
-    border-radius: 14px !important;
+/* Glassmorphism card overlays */
+body.theme-win98 .bg-white,
+body.theme-win98 .dark\:bg-slate-800 {
+  background-color: rgba(28, 12, 53, 0.75) !important;
+  border-color: rgba(236, 72, 153, 0.3) !important;
+  box-shadow: 0 0 15px rgba(236, 72, 153, 0.1), inset 0 0 10px rgba(14, 165, 233, 0.05) !important;
 }
 
-/* Override Text Colors */
-.theme-win98 .text-gray-800, 
-.theme-win98 .dark\:text-white,
-.theme-win98 .text-gray-200, 
-.theme-win98 .text-slate-600,
-.theme-win98 .text-slate-700,
-.theme-win98 .text-slate-800,
-.theme-win98 .text-slate-900,
-.theme-win98 .text-gray-700 {
-    color: #f1f5f9 !important;
+/* Input Fields and Selects */
+body.theme-win98 input,
+body.theme-win98 select,
+body.theme-win98 textarea {
+  background-color: #0e031a !important;
+  color: #38bdf8 !important; /* Cyber cyan text */
+  border-color: #ec4899 !important;
+  box-shadow: 0 0 5px rgba(236, 72, 153, 0.2) !important;
 }
 
-.theme-win98 .text-slate-400,
-.theme-win98 .text-slate-500,
-.theme-win98 .text-slate-300,
-.theme-win98 .text-gray-400,
-.theme-win98 .text-gray-500 {
-    color: #cbd5e1 !important;
+body.theme-win98 input:focus,
+body.theme-win98 select:focus,
+body.theme-win98 textarea:focus {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.6) !important;
 }
 
-/* Header Sidebar (Gaya Title Bar Gradasi Neon) */
-.theme-win98 #sidebar > div:first-child,
-.theme-win98 #mobile-sidebar > div:first-child {
-    background: linear-gradient(90deg, #7e0542 0%, #4c0757 50%, #15093b 100%) !important;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.18) !important;
-    border-top-left-radius: 14px !important;
-    border-top-right-radius: 14px !important;
-}
-.theme-win98 #sidebar > div:first-child h1,
-.theme-win98 #mobile-sidebar > div:first-child h1 {
-    color: #ffffff !important;
-    text-shadow: 0 0 10px rgba(255, 255, 255, 0.4) !important;
-}
-.theme-win98 #sidebar > div:first-child p,
-.theme-win98 #mobile-sidebar > div:first-child p {
-    color: #cbd5e1 !important;
+/* Buttons with neon styling */
+body.theme-win98 button,
+body.theme-win98 .btn {
+  text-shadow: 0 0 2px rgba(255, 255, 255, 0.5) !important;
 }
 
-/* Sudut Membulat yang Konsisten */
-.theme-win98 .rounded-xl,
-.theme-win98 .rounded-lg,
-.theme-win98 .rounded-md,
-.theme-win98 .rounded {
-    border-radius: 12px !important;
-}
-.theme-win98 .rounded-full {
-    border-radius: 9999px !important;
-}
-
-/* Efek Glow & Shadow */
-.theme-win98 .shadow, 
-.theme-win98 .shadow-md,
-.theme-win98 .shadow-lg, 
-.theme-win98 .shadow-xl, 
-.theme-win98 .shadow-2xl {
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 15px rgba(126, 5, 66, 0.15) !important;
+/* Primary/Accent button glows */
+body.theme-win98 .bg-primary-600,
+body.theme-win98 .bg-primary-500,
+body.theme-win98 .hover\:bg-primary-700:hover,
+body.theme-win98 button[onclick*="save"],
+body.theme-win98 button[type="submit"] {
+  background: linear-gradient(135deg, #ec4899 0%, #a855f7 50%, #38bdf8 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 0 10px rgba(236, 72, 153, 0.4) !important;
+  transition: all 0.2s ease-in-out !important;
 }
 
-/* Border Halus */
-.theme-win98 .border, 
-.theme-win98 .border-slate-200,
-.theme-win98 .dark\:border-slate-700, 
-.theme-win98 .border-slate-100 {
-    border-color: rgba(255, 255, 255, 0.1) !important;
+body.theme-win98 .bg-primary-600:hover,
+body.theme-win98 .bg-primary-500:hover {
+  filter: brightness(1.1) !important;
+  box-shadow: 0 0 15px rgba(236, 72, 153, 0.6), 0 0 25px rgba(56, 189, 248, 0.3) !important;
 }
 
-/* ── Tombol Utama (Gradasi Pink/Magenta Glow) ── */
-.theme-win98 button,
-.theme-win98 .bg-primary-600,
-.theme-win98 .bg-green-600,
-.theme-win98 .bg-red-600,
-.theme-win98 .bg-amber-500,
-.theme-win98 .bg-slate-100 {
-    background: linear-gradient(135deg, #4c0757 0%, #7e0542 100%) !important;
-    color: #ffffff !important;
-    border: 1px solid rgba(255, 255, 255, 0.25) !important;
-    border-radius: 10px !important;
-    box-shadow: 0 4px 14px rgba(126, 5, 66, 0.35) !important;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
-.theme-win98 button:hover,
-.theme-win98 .bg-primary-600:hover,
-.theme-win98 .bg-green-600:hover,
-.theme-win98 .bg-red-600:hover,
-.theme-win98 .bg-amber-500:hover {
-    background: linear-gradient(135deg, #5b0968 0%, #94074d 100%) !important;
-    box-shadow: 0 6px 20px rgba(126, 5, 66, 0.5), 0 0 10px rgba(255, 255, 255, 0.2) !important;
-    transform: translateY(-1px) !important;
-}
-.theme-win98 button:active {
-    transform: translateY(1px) !important;
+/* Text Highlights */
+body.theme-win98 .text-primary-600,
+body.theme-win98 .text-primary-500,
+body.theme-win98 .dark\:text-primary-400 {
+  color: #f472b6 !important; /* Hot Pink */
+  text-shadow: 0 0 4px rgba(244, 114, 182, 0.4) !important;
 }
 
-/* Desain Khusus Tombol Navigasi Sidebar */
-.theme-win98 .nav-btn {
-    background: transparent !important;
-    color: #cbd5e1 !important;
-    border: none !important;
-    box-shadow: none !important;
-    border-radius: 8px !important;
-    text-shadow: none !important;
-    transition: all 0.2s ease !important;
-}
-.theme-win98 .nav-btn:hover {
-    background: rgba(255, 255, 255, 0.08) !important;
-    color: #ffffff !important;
-    transform: translateX(4px) !important;
-    box-shadow: none !important;
-}
-.theme-win98 .nav-btn[class*="bg-primary-50"],
-.theme-win98 .nav-btn.bg-primary-50 {
-    background: linear-gradient(90deg, rgba(126, 5, 66, 0.3) 0%, rgba(76, 7, 87, 0.3) 100%) !important;
-    color: #ffffff !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    box-shadow: 0 4px 12px rgba(126, 5, 66, 0.2) !important;
+body.theme-win98 .text-accent-600,
+body.theme-win98 .text-accent-500,
+body.theme-win98 .text-green-600 {
+  color: #34d399 !important; /* Cyber Emerald */
+  text-shadow: 0 0 4px rgba(52, 211, 153, 0.4) !important;
 }
 
-/* ── Input & Select (Gelap Transparan + Magenta Glow Focus) ── */
-.theme-win98 input,
-.theme-win98 select,
-.theme-win98 textarea {
-    background: rgba(11, 4, 43, 0.5) !important;
-    color: #ffffff !important;
-    border-radius: 8px !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3) !important;
-    transition: border-color 0.2s, box-shadow 0.2s !important;
-}
-.theme-win98 input:focus,
-.theme-win98 select:focus,
-.theme-win98 textarea:focus {
-    border-color: #ec4899 !important;
-    box-shadow: 0 0 10px rgba(236, 72, 153, 0.45) !important;
-    outline: none !important;
-}
-.theme-win98 select option {
-    background-color: #15093b !important;
-    color: #ffffff !important;
+/* Table styles */
+body.theme-win98 table {
+  border-collapse: separate !important;
+  border-spacing: 0 4px !important;
 }
 
-/* ── Tabel Kaca Transparan & Header Gradasi ── */
-.theme-win98 table {
-    border-collapse: collapse !important;
-    background: rgba(11, 4, 43, 0.25) !important;
-    border-radius: 12px !important;
-    overflow: hidden !important;
-}
-.theme-win98 thead tr, 
-.theme-win98 .bg-slate-50, 
-.theme-win98 .dark\:bg-slate-900 {
-    background: linear-gradient(90deg, #4c0757 0%, #15093b 100%) !important;
-    color: #ffffff !important;
-}
-.theme-win98 th {
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.05em !important;
-    color: #ffffff !important;
-}
-.theme-win98 td {
-    border: 1px solid rgba(255, 255, 255, 0.06) !important;
-    color: #e2e8f0 !important;
-}
-.theme-win98 tbody tr:hover {
-    background: rgba(255, 255, 255, 0.05) !important;
+body.theme-win98 tr {
+  background-color: rgba(20, 7, 40, 0.6) !important;
+  transition: all 0.15s ease-in-out !important;
 }
 
-/* ── Modals / Dialog Jendela Apung ── */
-.theme-win98 #global-modal > div {
-    background: rgba(18, 11, 46, 0.9) !important;
-    backdrop-filter: blur(25px) !important;
-    border-radius: 16px !important;
-    border: 1px solid rgba(255, 255, 255, 0.18) !important;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), 0 0 30px rgba(236, 72, 153, 0.15) !important;
-}
-.theme-win98 #global-modal h3 {
-    background: linear-gradient(90deg, #7e0542 0%, #4c0757 100%) !important;
-    color: #ffffff !important;
-    margin: -24px -24px 16px -24px !important;
-    padding: 12px 20px !important;
-    border-top-left-radius: 14px !important;
-    border-top-right-radius: 14px !important;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+body.theme-win98 tr:hover {
+  background-color: rgba(236, 72, 153, 0.15) !important;
+  box-shadow: 0 0 8px rgba(236, 72, 153, 0.1) !important;
 }
 
-/* Searchable Select Dropdown */
-.theme-win98 .searchable-select-wrapper div {
-    background: rgba(18, 11, 46, 0.98) !important;
-    backdrop-filter: blur(20px) !important;
-    border-color: rgba(255, 255, 255, 0.18) !important;
-    border-radius: 10px !important;
-}
-.theme-win98 .searchable-select-wrapper div > div {
-    color: #cbd5e1 !important;
-}
-.theme-win98 .searchable-select-wrapper div > div:hover,
-.theme-win98 .searchable-select-wrapper div > div.bg-primary-50 {
-    background: rgba(255, 255, 255, 0.1) !important;
-    color: #ffffff !important;
+body.theme-win98 th {
+  background-color: rgba(43, 19, 79, 0.8) !important;
+  color: #38bdf8 !important;
+  border-bottom: 2px solid #ec4899 !important;
 }
 
-/* ── Scrollbar Cyberpunk Neon ── */
-.theme-win98 ::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
-.theme-win98 ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.3) !important; }
-.theme-win98 ::-webkit-scrollbar-thumb {
-    background: #4c0757 !important;
-    border-radius: 4px !important;
-}
-.theme-win98 ::-webkit-scrollbar-thumb:hover {
-    background: #7e0542 !important;
+body.theme-win98 td {
+  border-color: rgba(236, 72, 153, 0.15) !important;
 }
 
-/* ── Spinner Loading Neon ── */
-.theme-win98 .spinner {
-    border-radius: 50% !important;
-    border: 3px solid rgba(255, 255, 255, 0.1) !important;
-    border-top-color: #ec4899 !important;
+/* Navigation items */
+body.theme-win98 nav a,
+body.theme-win98 aside a {
+  color: #d8b4fe !important;
+  transition: all 0.2s ease !important;
 }
 
-/* Status Badges */
-.theme-win98 span[class*="bg-purple-50"],
-.theme-win98 span[class*="bg-emerald-50"],
-.theme-win98 span[class*="bg-blue-50"],
-.theme-win98 span[class*="bg-indigo-50"],
-.theme-win98 span[class*="bg-teal-50"],
-.theme-win98 span[class*="bg-green-50"],
-.theme-win98 span[class*="bg-red-50"] {
-    background: rgba(255, 255, 255, 0.06) !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    color: #ffffff !important;
+body.theme-win98 nav a:hover,
+body.theme-win98 aside a:hover,
+body.theme-win98 nav a.active,
+body.theme-win98 aside a.active {
+  background: rgba(236, 72, 153, 0.15) !important;
+  color: #ffffff !important;
+  border-left: 3px solid #ec4899 !important;
+  text-shadow: 0 0 5px rgba(236, 72, 153, 0.5) !important;
 }
 
-/* Semantic Badges Colors */
-.theme-win98 .text-green-600, .theme-win98 .text-emerald-600 { color: #4ade80 !important; font-weight: bold !important; }
-.theme-win98 .text-red-500, .theme-win98 .text-red-600 { color: #f87171 !important; font-weight: bold !important; }
-.theme-win98 .text-amber-500, .theme-win98 .text-amber-600 { color: #fbbf24 !important; font-weight: bold !important; }
-.theme-win98 .text-blue-500, .theme-win98 .text-blue-600 { color: #60a5fa !important; font-weight: bold !important; }
-
-/* ── Raised & Sunken ── */
-.theme-win98 .win98-raised {
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    box-shadow: 0 4px 12px rgba(126, 5, 66, 0.2) !important;
-}
-.theme-win98 .win98-sunken {
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    background: rgba(0, 0, 0, 0.25) !important;
+/* Badges & Status */
+body.theme-win98 .bg-slate-100,
+body.theme-win98 .bg-gray-100 {
+  background-color: #2b134f !important;
+  color: #e9d5ff !important;
+  border: 1px solid rgba(236, 72, 153, 0.2) !important;
 }
 
-/* Cursor pointer */
-.theme-win98 button, .theme-win98 [onclick] {
-    cursor: pointer;
+/* Neon Scrollbars for theme-win98 */
+body.theme-win98 ::-webkit-scrollbar-thumb {
+  background: #ec4899 !important;
+  box-shadow: 0 0 5px #ec4899 !important;
+}
+
+body.theme-win98 ::-webkit-scrollbar-track {
+  background: #0e031a !important;
+}
+
+/* Custom dynamic scanline overlay effect for immersive theme */
+body.theme-win98::before {
+  content: " ";
+  display: block;
+  position: fixed;
+  top: 0; left: 0; bottom: 0; right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  z-index: 99999;
+  background-size: 100% 4px, 6px 100%;
+  pointer-events: none;
 }

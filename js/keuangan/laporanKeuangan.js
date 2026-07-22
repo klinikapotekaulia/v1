@@ -326,6 +326,7 @@ window.AppKeuanganLaporanKeuangan = {
         var totalOmzet = 0, totalHPP = 0, totalLabaKotor = 0;
         var totalTindakan = 0, totalRacik = 0, totalJasaResep = 0;
         var cashMasuk = 0, transferMasuk = 0, qrisMasuk = 0;
+        var totalPPNKeluaran = 0;
 
         this.dataTransaksi.forEach(function(t) {
             var omzetObat = t.items ? t.items.reduce(function(s, i) { return s + (i.jumlah * i.hargaJual); }, 0) : 0;
@@ -338,6 +339,20 @@ window.AppKeuanganLaporanKeuangan = {
             totalJasaResep += (t.jasaResep || 0);
             totalLabaKotor += (omzetObat - hppObat) + (t.totalRacik || 0) + (t.totalTindakan || 0) + (t.jasaResep || 0);
 
+            // Hitung atau ambil PPN Keluaran
+            var ppn = 0;
+            if (t.totalPPN !== undefined) {
+                ppn = t.totalPPN;
+            } else if (t.items) {
+                t.items.forEach(function(item) {
+                    if (item.isPPN !== false) {
+                        var sub = item.jumlah * item.hargaJual;
+                        ppn += Math.round(sub - (sub / 1.11));
+                    }
+                });
+            }
+            totalPPNKeluaran += ppn;
+
             if (t.metodeBayar === 'cash') cashMasuk += t.totalAkhir || 0;
             else if (t.metodeBayar === 'transfer') transferMasuk += t.totalAkhir || 0;
             else if (t.metodeBayar === 'qris') qrisMasuk += t.totalAkhir || 0;
@@ -345,14 +360,31 @@ window.AppKeuanganLaporanKeuangan = {
 
         // 2. KALKULASI PENGELUARAN
         var totalOperasional = 0, totalBeliTunai = 0, totalBeliKredit = 0;
+        var totalPPNMasukan = 0;
         
         this.dataPengeluaran.forEach(function(p) {
             totalOperasional += p.jumlah || 0;
         });
 
         this.dataPembelian.forEach(function(b) {
-            if (b.metodePembayaran === 'tunai') totalBeliTunai += b.totalHarga || 0;
-            else totalBeliKredit += b.totalHarga || 0;
+            var valBeli = b.totalHarga || 0;
+            if (b.metodePembayaran === 'tunai') totalBeliTunai += valBeli;
+            else totalBeliKredit += valBeli;
+
+            // Hitung atau ambil PPN Masukan
+            var ppn = 0;
+            if (b.totalPPN !== undefined) {
+                ppn = b.totalPPN;
+            } else if (b.items) {
+                b.items.forEach(function(item) {
+                    if (item.isPPN !== false) {
+                        var qty = item.qty || item.jumlah || 0;
+                        var sub = qty * (item.hargaBeli || 0);
+                        ppn += Math.round(sub - (sub / 1.11));
+                    }
+                });
+            }
+            totalPPNMasukan += ppn;
         });
 
         // FITUR BARU: Beban Payroll (Gaji + Tunjangan). Sebelumnya laporan ini SAMA SEKALI tidak
@@ -418,6 +450,12 @@ window.AppKeuanganLaporanKeuangan = {
             totalPemasukanLain: totalPemasukanLain,
             totalKasKeluar: totalKasKeluar, labaBersih: labaBersih,
             marginLabaKotor: marginLabaKotor, marginLabaBersih: marginLabaBersih, pertumbuhanOmzet: pertumbuhanOmzet,
+            // PPN & Net values
+            totalPPNKeluaran: totalPPNKeluaran,
+            totalPPNMasukan: totalPPNMasukan,
+            nilaiBersihPenjualan: totalOmzet - totalPPNKeluaran,
+            nilaiBersihPembelian: (totalBeliTunai + totalBeliKredit) - totalPPNMasukan,
+            netTaxToPay: totalPPNKeluaran - totalPPNMasukan,
             // FITUR BARU: Laporan Bayangan
             payrollRealtimeGajiPokok: payrollRealtime.totalGajiPokok,
             payrollRealtimeTunjanganJasa: payrollRealtime.totalTunjanganJasa,
@@ -429,8 +467,13 @@ window.AppKeuanganLaporanKeuangan = {
         };
 
         // 3. RENDER UI
+        // FITUR BARU (permintaan user): tombol export hanya untuk akun Keuangan --
+        // role lain (admin/psa) yang bisa membuka halaman ini tetap bisa lihat
+        // laporan, tapi tidak bisa export filenya.
         var html = '<div class="flex justify-end mb-4">';
-        html += '  <button onclick="AppKeuanganLaporanKeuangan.exportExcel()" class="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Export Laporan (Excel)</button>';
+        if (window.currentRole === 'keuangan') {
+            html += '  <button onclick="AppKeuanganLaporanKeuangan.exportExcel()" class="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Export Laporan (Excel)</button>';
+        }
         html += '</div>';
 
         // FITUR BARU: kartu rasio & pertumbuhan
@@ -442,11 +485,13 @@ window.AppKeuanganLaporanKeuangan = {
 
         html += '<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">';
         
-        // Kartu 1: Ringkasan Laba Rugi
+        // Kartu 1: Ringkasan Laba/Rugi (Gross vs Net breakdown)
         html += '<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">';
         html += '  <h3 class="font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2"><i data-lucide="trending-up" class="w-5 h-5 text-emerald-500"></i> Ringkasan Laba/Rugi</h3>';
         html += '  <div class="space-y-3 text-sm">';
-        html += '    <div class="flex justify-between"><span class="text-slate-500">Omzet Penjualan</span><span class="font-semibold text-gray-800 dark:text-white">' + Utils.formatRupiah(totalOmzet) + '</span></div>';
+        html += '    <div class="flex justify-between"><span class="text-slate-500">Omzet Penjualan (Gross)</span><span class="font-semibold text-gray-800 dark:text-white">' + Utils.formatRupiah(totalOmzet) + '</span></div>';
+        html += '    <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">- PPN Keluaran (11%)</span><span class="text-amber-500">' + Utils.formatRupiah(totalPPNKeluaran) + '</span></div>';
+        html += '    <div class="flex justify-between pl-4 text-xs font-semibold text-emerald-600"><span class="text-slate-500"># Penjualan Bersih (Net)</span><span>' + Utils.formatRupiah(totalOmzet - totalPPNKeluaran) + '</span></div>';
         html += '    <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">- Modal Obat (HPP)</span><span class="text-red-500">' + Utils.formatRupiah(totalHPP) + '</span></div>';
         html += '    <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">+ Tindakan & Jasa</span><span class="text-emerald-500">' + Utils.formatRupiah(totalTindakan + totalJasaResep) + '</span></div>';
         html += '    <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">+ Racik & Lainnya</span><span class="text-emerald-500">' + Utils.formatRupiah(totalRacik) + '</span></div>';
@@ -480,6 +525,47 @@ window.AppKeuanganLaporanKeuangan = {
         html += '</div>';
         html += '</div>';
 
+        // Kartu Baru: Rekap Pajak PPN & Nilai Bersih
+        html += '<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 mb-6">';
+        html += '  <h3 class="font-bold text-gray-800 dark:text-white mb-2 flex items-center gap-2"><i data-lucide="percent" class="w-5 h-5 text-indigo-500"></i> Rekapitulasi Pajak (PPN 11%) & Nilai Bersih</h3>';
+        html += '  <p class="text-xs text-slate-400 dark:text-slate-500 mb-4">Ringkasan Nilai Bersih (Net) dan PPN otomatis dari setiap transaksi penjualan & pembelian untuk mempermudah SPT Masa PPN bulanan.</p>';
+        html += '  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">';
+        
+        // PPN Penjualan (Keluaran)
+        html += '    <div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 space-y-2">';
+        html += '      <p class="font-semibold text-gray-800 dark:text-white border-b border-slate-200 dark:border-slate-700 pb-1">PPN Keluaran (Penjualan)</p>';
+        html += '      <div class="flex justify-between text-xs"><span class="text-slate-500">Omzet Penjualan (Gross)</span><span class="font-medium">' + Utils.formatRupiah(totalOmzet) + '</span></div>';
+        html += '      <div class="flex justify-between text-xs text-indigo-600 font-semibold"><span class="text-slate-500">Total PPN Keluaran</span><span>' + Utils.formatRupiah(totalPPNKeluaran) + '</span></div>';
+        html += '      <div class="flex justify-between text-xs border-t border-slate-100 dark:border-slate-800 pt-1 font-semibold text-emerald-600"><span class="text-slate-500">Nilai Penjualan Bersih</span><span>' + Utils.formatRupiah(totalOmzet - totalPPNKeluaran) + '</span></div>';
+        html += '    </div>';
+
+        // PPN Pembelian (Masukan)
+        var totalBeliGross = totalBeliTunai + totalBeliKredit;
+        html += '    <div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 space-y-2">';
+        html += '      <p class="font-semibold text-gray-800 dark:text-white border-b border-slate-200 dark:border-slate-700 pb-1">PPN Masukan (Pembelian)</p>';
+        html += '      <div class="flex justify-between text-xs"><span class="text-slate-500">Total Pembelian (Gross)</span><span class="font-medium">' + Utils.formatRupiah(totalBeliGross) + '</span></div>';
+        html += '      <div class="flex justify-between text-xs text-indigo-600 font-semibold"><span class="text-slate-500">Total PPN Masukan</span><span>' + Utils.formatRupiah(totalPPNMasukan) + '</span></div>';
+        html += '      <div class="flex justify-between text-xs border-t border-slate-100 dark:border-slate-800 pt-1 font-semibold text-emerald-600"><span class="text-slate-500">Nilai Pembelian Bersih</span><span>' + Utils.formatRupiah(totalBeliGross - totalPPNMasukan) + '</span></div>';
+        html += '    </div>';
+
+        // Estimasi Kurang / Lebih Bayar
+        var netTax = totalPPNKeluaran - totalPPNMasukan;
+        var isKurangBayar = netTax >= 0;
+        var statusTaxText = isKurangBayar ? 'PPN Kurang Bayar (Wajib Setor)' : 'PPN Lebih Bayar (Kompensasi)';
+        var statusColor = isKurangBayar ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400';
+        
+        html += '    <div class="bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900 rounded-lg p-4 space-y-2">';
+        html += '      <p class="font-semibold text-indigo-800 dark:text-indigo-300 border-b border-indigo-100 dark:border-indigo-900 pb-1">Status SPT Pajak Bulanan</p>';
+        html += '      <p class="text-xs font-semibold ' + statusColor + '">' + statusTaxText + '</p>';
+        html += '      <div class="flex justify-between text-lg pt-2 border-t border-indigo-100 dark:border-indigo-900 font-bold text-indigo-700 dark:text-indigo-400">';
+        html += '        <span>ESTIMASI PAJAK:</span>';
+        html += '        <span>' + Utils.formatRupiah(Math.abs(netTax)) + '</span>';
+        html += '      </div>';
+        html += '    </div>';
+
+        html += '  </div>';
+        html += '</div>';
+
         // Kartu 3: Hutang & Piutang Info
         html += '<div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-5 flex items-center gap-4 mb-6">';
         html += '  <i data-lucide="alert-circle" class="w-8 h-8 text-amber-500 flex-shrink-0"></i>';
@@ -492,42 +578,44 @@ window.AppKeuanganLaporanKeuangan = {
         // ============================================================
         // Kartu 4: LAPORAN KEUANGAN BAYANGAN (Real-Time / Akrual)
         // ============================================================
-        var isUntung = labaBersihBayangan >= 0;
-        var badgeBayangan = isUntung
-            ? '<span class="text-xs font-bold bg-emerald-500 text-white px-3 py-1 rounded-full">SUDAH UNTUNG</span>'
-            : '<span class="text-xs font-bold bg-red-500 text-white px-3 py-1 rounded-full animate-pulse">MASIH MINUS</span>';
+        if (window.currentRole !== 'psa') {
+            var isUntung = labaBersihBayangan >= 0;
+            var badgeBayangan = isUntung
+                ? '<span class="text-xs font-bold bg-emerald-500 text-white px-3 py-1 rounded-full">SUDAH UNTUNG</span>'
+                : '<span class="text-xs font-bold bg-red-500 text-white px-3 py-1 rounded-full animate-pulse">MASIH MINUS</span>';
 
-        html += '<div class="bg-white dark:bg-slate-800 rounded-xl border-2 border-primary-200 dark:border-primary-800 p-5 mb-6">';
-        html += '  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-1">';
-        html += '    <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2"><i data-lucide="ghost" class="w-5 h-5 text-primary-500"></i> Laporan Keuangan Bayangan (Real-Time)</h3>';
-        html += '    ' + badgeBayangan;
-        html += '  </div>';
-        html += '  <p class="text-xs text-slate-400 dark:text-slate-500 mb-4">Estimasi laba PSA sesungguhnya — payroll dihitung real-time (walau belum ditekan "Bayarkan") & hutang yang jatuh tempo bulan ini ikut dikurangi, walau belum dibayar.</p>';
+            html += '<div class="bg-white dark:bg-slate-800 rounded-xl border-2 border-primary-200 dark:border-primary-800 p-5 mb-6">';
+            html += '  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-1">';
+            html += '    <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2"><i data-lucide="ghost" class="w-5 h-5 text-primary-500"></i> Laporan Keuangan Bayangan (Real-Time)</h3>';
+            html += '    ' + badgeBayangan;
+            html += '  </div>';
+            html += '  <p class="text-xs text-slate-400 dark:text-slate-500 mb-4">Estimasi laba PSA sesungguhnya — payroll dihitung real-time (walau belum ditekan "Bayarkan") & hutang yang jatuh tempo bulan ini ikut dikurangi, walau belum dibayar.</p>';
 
-        html += '  <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">';
-        html += '    <div class="space-y-2 text-sm">';
-        html += '      <div class="flex justify-between"><span class="text-slate-500">Laba Kotor</span><span class="font-semibold text-gray-800 dark:text-white">' + Utils.formatRupiah(totalLabaKotor) + '</span></div>';
-        html += '      <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">- Gaji Pokok (real-time)</span><span class="text-red-500">' + Utils.formatRupiah(payrollRealtime.totalGajiPokok) + '</span></div>';
-        html += '      <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">- Tunjangan & Jasa (real-time)</span><span class="text-red-500">' + Utils.formatRupiah(payrollRealtime.totalTunjanganJasa) + '</span></div>';
-        html += '      <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">- Biaya Operasional Lain</span><span class="text-red-500">' + Utils.formatRupiah(totalOperasional) + '</span></div>';
-        if (totalPemasukanLain > 0) {
-            html += '      <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">+ Pemasukan Lain</span><span class="text-emerald-500">' + Utils.formatRupiah(totalPemasukanLain) + '</span></div>';
+            html += '  <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">';
+            html += '    <div class="space-y-2 text-sm">';
+            html += '      <div class="flex justify-between"><span class="text-slate-500">Laba Kotor</span><span class="font-semibold text-gray-800 dark:text-white">' + Utils.formatRupiah(totalLabaKotor) + '</span></div>';
+            html += '      <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">- Gaji Pokok (real-time)</span><span class="text-red-500">' + Utils.formatRupiah(payrollRealtime.totalGajiPokok) + '</span></div>';
+            html += '      <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">- Tunjangan & Jasa (real-time)</span><span class="text-red-500">' + Utils.formatRupiah(payrollRealtime.totalTunjanganJasa) + '</span></div>';
+            html += '      <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">- Biaya Operasional Lain</span><span class="text-red-500">' + Utils.formatRupiah(totalOperasional) + '</span></div>';
+            if (totalPemasukanLain > 0) {
+                html += '      <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">+ Pemasukan Lain</span><span class="text-emerald-500">' + Utils.formatRupiah(totalPemasukanLain) + '</span></div>';
+            }
+            html += '      <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">- Hutang Jatuh Tempo (s/d ' + this._fmtTglSingkat(this.endDate) + ')</span><span class="text-red-500">' + Utils.formatRupiah(hutangJatuhTempoBulanIni) + '</span></div>';
+            html += '      <div class="flex justify-between border-t-2 border-slate-200 pt-3 mt-2"><span class="font-bold text-gray-800 dark:text-white">LABA BERSIH BAYANGAN</span><span class="font-bold text-lg ' + (isUntung ? 'text-emerald-600' : 'text-red-600') + '">' + Utils.formatRupiah(labaBersihBayangan) + '</span></div>';
+            html += '    </div>';
+
+            html += '    <div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 text-sm space-y-2">';
+            html += '      <div class="flex justify-between"><span class="text-slate-500">Laba Bersih resmi (basis kas)</span><span class="font-semibold text-gray-700 dark:text-slate-300">' + Utils.formatRupiah(labaBersih) + '</span></div>';
+            html += '      <div class="flex justify-between"><span class="text-slate-500">Laba Bersih Bayangan (basis akrual)</span><span class="font-semibold ' + (isUntung ? 'text-emerald-600' : 'text-red-600') + '">' + Utils.formatRupiah(labaBersihBayangan) + '</span></div>';
+            html += '      <div class="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2"><span class="text-slate-500">Selisih</span><span class="font-bold ' + (selisihVsResmi <= 0 ? 'text-red-500' : 'text-emerald-500') + '">' + (selisihVsResmi > 0 ? '+' : '') + Utils.formatRupiah(selisihVsResmi) + '</span></div>';
+            html += '      <p class="text-xs text-slate-400 pt-1">Selisih ini adalah kewajiban (payroll + hutang) yang sudah harus dihitung tapi belum tentu sudah cair sebagai kas.</p>';
+            if (daftarHutangJatuhTempo.length > 0) {
+                html += '      <p class="text-xs text-amber-600 dark:text-amber-400 pt-1 font-medium">' + daftarHutangJatuhTempo.length + ' faktur hutang jatuh tempo s/d akhir bulan ini, lihat detail di modul Hutang Usaha.</p>';
+            }
+            html += '    </div>';
+            html += '  </div>';
+            html += '</div>';
         }
-        html += '      <div class="flex justify-between pl-4 text-xs"><span class="text-slate-400">- Hutang Jatuh Tempo (s/d ' + this._fmtTglSingkat(this.endDate) + ')</span><span class="text-red-500">' + Utils.formatRupiah(hutangJatuhTempoBulanIni) + '</span></div>';
-        html += '      <div class="flex justify-between border-t-2 border-slate-200 pt-3 mt-2"><span class="font-bold text-gray-800 dark:text-white">LABA BERSIH BAYANGAN</span><span class="font-bold text-lg ' + (isUntung ? 'text-emerald-600' : 'text-red-600') + '">' + Utils.formatRupiah(labaBersihBayangan) + '</span></div>';
-        html += '    </div>';
-
-        html += '    <div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 text-sm space-y-2">';
-        html += '      <div class="flex justify-between"><span class="text-slate-500">Laba Bersih resmi (basis kas)</span><span class="font-semibold text-gray-700 dark:text-slate-300">' + Utils.formatRupiah(labaBersih) + '</span></div>';
-        html += '      <div class="flex justify-between"><span class="text-slate-500">Laba Bersih Bayangan (basis akrual)</span><span class="font-semibold ' + (isUntung ? 'text-emerald-600' : 'text-red-600') + '">' + Utils.formatRupiah(labaBersihBayangan) + '</span></div>';
-        html += '      <div class="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2"><span class="text-slate-500">Selisih</span><span class="font-bold ' + (selisihVsResmi <= 0 ? 'text-red-500' : 'text-emerald-500') + '">' + (selisihVsResmi > 0 ? '+' : '') + Utils.formatRupiah(selisihVsResmi) + '</span></div>';
-        html += '      <p class="text-xs text-slate-400 pt-1">Selisih ini adalah kewajiban (payroll + hutang) yang sudah harus dihitung tapi belum tentu sudah cair sebagai kas.</p>';
-        if (daftarHutangJatuhTempo.length > 0) {
-            html += '      <p class="text-xs text-amber-600 dark:text-amber-400 pt-1 font-medium">' + daftarHutangJatuhTempo.length + ' faktur hutang jatuh tempo s/d akhir bulan ini, lihat detail di modul Hutang Usaha.</p>';
-        }
-        html += '    </div>';
-        html += '  </div>';
-        html += '</div>';
 
         // Tabel Rincian Transaksi
         html += '<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">';
@@ -561,6 +649,13 @@ window.AppKeuanganLaporanKeuangan = {
 
     // FITUR BARU: export laporan lengkap ke Excel (multi-sheet: Ringkasan, Rincian Transaksi, Rincian Pengeluaran)
     exportExcel: function() {
+        // FITUR BARU (permintaan user): export laporan keuangan khusus akun Keuangan.
+        // Tombolnya sudah disembunyikan untuk role lain di render(), ini lapisan
+        // kedua supaya fungsi ini tetap aman kalau dipanggil langsung (mis. dari console).
+        if (window.currentRole !== 'keuangan') {
+            Utils.toast('Export laporan keuangan hanya untuk akun Keuangan.', 'error');
+            return;
+        }
         if (!this.summary) { Utils.toast('Tampilkan laporan dahulu sebelum export.', 'error'); return; }
         var s = this.summary;
         var bulan = document.getElementById('filter-bulan').value;
@@ -570,8 +665,12 @@ window.AppKeuanganLaporanKeuangan = {
         var ringkasan = [
             ['LAPORAN KEUANGAN - Aulia Apotek Klinik'], ['Periode: ' + bulan], [],
             ['RINGKASAN LABA/RUGI', ''],
-            ['Omzet Penjualan', s.totalOmzet],
-            ['Modal Obat (HPP)', -s.totalHPP],
+            ['Omzet Penjualan (Gross)', s.totalOmzet],
+            ['PPN Keluaran (11%)', -s.totalPPNKeluaran],
+            ['Penjualan Bersih (Net)', s.totalOmzet - s.totalPPNKeluaran],
+            ['Modal Obat (HPP Gross)', -s.totalHPP],
+            ['Est. PPN Masukan (11%)', s.totalPPNMasukan],
+            ['Modal Obat (HPP Net)', -(s.totalHPP - s.totalPPNMasukan)],
             ['Tindakan & Jasa', s.totalTindakan + s.totalJasaResep],
             ['Racik & Lainnya', s.totalRacik],
             ['Laba Kotor', s.totalLabaKotor],
@@ -591,6 +690,10 @@ window.AppKeuanganLaporanKeuangan = {
             ['Pembayaran Payroll', -s.totalBebanPayroll],
             ['Total Kas Keluar', -s.totalKasKeluar], [],
             ['Pembelian Kredit (belum lunas)', s.totalBeliKredit], [],
+            ['REKAPITULASI PAJAK (PPN 11%)', ''],
+            ['Total PPN Keluaran', s.totalPPNKeluaran],
+            ['Total PPN Masukan', s.totalPPNMasukan],
+            ['Pajak Kurang/Lebih Bayar', s.netTaxToPay], [],
             ['RASIO', ''],
             ['Margin Laba Kotor', s.marginLabaKotor.toFixed(1) + '%'],
             ['Margin Laba Bersih', s.marginLabaBersih.toFixed(1) + '%'],
@@ -618,20 +721,22 @@ window.AppKeuanganLaporanKeuangan = {
             XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(masukRows), 'Rincian Pemasukan Lain');
         }
 
-        // FITUR BARU: sheet Laporan Bayangan (Real-Time / Akrual)
-        var bayangan = [
-            ['LAPORAN KEUANGAN BAYANGAN (Real-Time / Akrual)'], ['Periode: ' + bulan], [],
-            ['Laba Kotor', s.totalLabaKotor],
-            ['Gaji Pokok (real-time)', -s.payrollRealtimeGajiPokok],
-            ['Tunjangan & Jasa (real-time)', -s.payrollRealtimeTunjanganJasa],
-            ['Biaya Operasional Lain', -s.totalOperasional],
-            ['Pemasukan Lain', s.totalPemasukanLain || 0],
-            ['Hutang Jatuh Tempo Bulan Ini', -s.hutangJatuhTempoBulanIni],
-            ['LABA BERSIH BAYANGAN', s.labaBersihBayangan], [],
-            ['Laba Bersih resmi (basis kas)', s.labaBersih],
-            ['Selisih (kewajiban blm cair)', s.selisihVsResmi]
-        ];
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(bayangan), 'Laporan Bayangan');
+        if (window.currentRole !== 'psa') {
+            // FITUR BARU: sheet Laporan Bayangan (Real-Time / Akrual)
+            var bayangan = [
+                ['LAPORAN KEUANGAN BAYANGAN (Real-Time / Akrual)'], ['Periode: ' + bulan], [],
+                ['Laba Kotor', s.totalLabaKotor],
+                ['Gaji Pokok (real-time)', -s.payrollRealtimeGajiPokok],
+                ['Tunjangan & Jasa (real-time)', -s.payrollRealtimeTunjanganJasa],
+                ['Biaya Operasional Lain', -s.totalOperasional],
+                ['Pemasukan Lain', s.totalPemasukanLain || 0],
+                ['Hutang Jatuh Tempo Bulan Ini', -s.hutangJatuhTempoBulanIni],
+                ['LABA BERSIH BAYANGAN', s.labaBersihBayangan], [],
+                ['Laba Bersih resmi (basis kas)', s.labaBersih],
+                ['Selisih (kewajiban blm cair)', s.selisihVsResmi]
+            ];
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(bayangan), 'Laporan Bayangan');
+        }
 
         if (s.daftarHutangJatuhTempo && s.daftarHutangJatuhTempo.length > 0) {
             var hutangRows = [['No. Faktur', 'Supplier', 'Jatuh Tempo', 'Status', 'Total Hutang']];
@@ -644,4 +749,4 @@ window.AppKeuanganLaporanKeuangan = {
         XLSX.writeFile(wb, 'Laporan_Keuangan_' + bulan + '.xlsx');
         Utils.toast('Laporan berhasil diexport ke Excel!', 'success');
     }
-};
+}

@@ -141,10 +141,10 @@ window.AppLaporanAuditTrail = {
     init: function() {
         // Keamanan tambahan: Cek role
         var role = window.currentRole || 'apotek';
-        if (role !== 'admin' && role !== 'keuangan') {
+        if (role !== 'admin' && role !== 'keuangan' && role !== 'psa') {
             var container = document.getElementById('audit-trail-content');
             if (container) {
-                container.innerHTML = '<div class="bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 p-4 rounded-lg">Akses Ditolak. Halaman ini khusus Admin/Keuangan.</div>';
+                container.innerHTML = '<div class="bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 p-4 rounded-lg">Akses Ditolak. Halaman ini khusus Admin/Keuangan/PSA.</div>';
             }
             return;
         }
@@ -190,7 +190,7 @@ window.AppLaporanAuditTrail = {
             })
             .catch(function(err) {
                 self.isLoading = false;
-                console.error('Gagal mengambil auditLog:', err);
+                console.warn('Gagal mengambil auditLog:', err.message || err);
                 var container = document.getElementById('audit-trail-content');
                 if (container) {
                     container.innerHTML = '<div class="bg-white dark:bg-slate-800 rounded-xl border border-red-200 dark:border-red-900/30 p-8 text-center text-red-500 text-sm flex flex-col items-center gap-3">' +

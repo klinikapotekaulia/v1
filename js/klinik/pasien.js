@@ -16,8 +16,8 @@ window.AppKlinikPasien = {
         html += '    <p class="text-sm text-slate-500 dark:text-slate-400">Master data pasien klinik & apotek</p>';
         html += '  </div>';
         html += '  <div class="flex flex-wrap gap-2">';
-        // Export/Template/Import data pasien: HANYA untuk role admin & keuangan (data pasien sensitif)
-        if (window.currentRole === 'admin' || window.currentRole === 'keuangan') {
+        // Export/Template/Import data pasien: HANYA untuk role admin, keuangan, & psa (data pasien sensitif)
+        if (window.currentRole === 'admin' || window.currentRole === 'keuangan' || window.currentRole === 'psa') {
             html += '    <button onclick="AppKlinikPasien.exportExcel()" class="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Export Data Pasien</button>';
             html += '    <button onclick="AppKlinikPasien.downloadTemplate()" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> Template Excel</button>';
             html += '    <label class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2 cursor-pointer"><i data-lucide="upload" class="w-4 h-4"></i> Import Excel <input type="file" accept=".xlsx,.xls" class="hidden" onchange="AppKlinikPasien.handleFileUpload(event)"></label>';
@@ -213,8 +213,8 @@ window.AppKlinikPasien = {
 
     exportExcel: function() {
         // Guard di level fungsi juga (bukan cuma sembunyikan tombol), agar tidak bisa
-        // dipanggil manual lewat console oleh role selain admin/keuangan.
-        if (window.currentRole !== 'admin' && window.currentRole !== 'keuangan') {
+        // dipanggil manual lewat console oleh role selain admin/keuangan/psa.
+        if (window.currentRole !== 'admin' && window.currentRole !== 'keuangan' && window.currentRole !== 'psa') {
             Utils.toast('Anda tidak memiliki akses untuk export data pasien.', 'error');
             return;
         }
@@ -240,7 +240,7 @@ window.AppKlinikPasien = {
     },
 
     downloadTemplate: function() {
-        if (window.currentRole !== 'admin' && window.currentRole !== 'keuangan') {
+        if (window.currentRole !== 'admin' && window.currentRole !== 'keuangan' && window.currentRole !== 'psa') {
             Utils.toast('Anda tidak memiliki akses untuk fitur ini.', 'error');
             return;
         }
@@ -256,7 +256,7 @@ window.AppKlinikPasien = {
     },
 
     handleFileUpload: function(event) {
-        if (window.currentRole !== 'admin' && window.currentRole !== 'keuangan') {
+        if (window.currentRole !== 'admin' && window.currentRole !== 'keuangan' && window.currentRole !== 'psa') {
             Utils.toast('Anda tidak memiliki akses untuk import data pasien.', 'error');
             event.target.value = '';
             return;

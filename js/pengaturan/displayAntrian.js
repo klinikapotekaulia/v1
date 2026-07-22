@@ -33,9 +33,9 @@ window.AppPengaturanDisplayAntrian = {
     init: function() {
         var self = this;
         var role = window.currentRole || '';
-        if (role !== 'admin' && role !== 'keuangan') {
+        if (role !== 'admin' && role !== 'keuangan' && role !== 'psa') {
             var el = document.getElementById('display-antrian-content');
-            if (el) el.innerHTML = '<div class="bg-red-50 text-red-600 p-4 rounded-lg text-center font-semibold">Akses Ditolak. Halaman ini khusus Admin/Keuangan.</div>';
+            if (el) el.innerHTML = '<div class="bg-red-50 text-red-600 p-4 rounded-lg text-center font-semibold">Akses Ditolak. Halaman ini khusus Admin/Keuangan/PSA.</div>';
             return;
         }
 

@@ -10,21 +10,62 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Aulia App">
-    <title>Apotek &amp; Klinik Aulia</title>
+    <meta name="apple-mobile-web-app-title" content="AULIAapotek dan Praktek Dokter Mandiri">
+    <title>AULIAapotek dan Praktek Dokter Mandiri</title>
 
-    <!-- Tailwind CSS (hasil build produksi, lihat package.json -> npm run build:css) -->
+    <!-- Tailwind CSS (hasil build produksi & CDN fallback untuk static hosting) -->
     <link rel="stylesheet" href="css/tailwind.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50:  '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd',
+                            300: '#7dd3fc', 400: '#38bdf8', 500: '#0ea5e9',
+                            600: '#0284c7', 700: '#0369a1', 800: '#075985', 900: '#0c4a6e'
+                        },
+                        accent: {
+                            50: '#f0fdf4', 100: '#dcfce7',
+                            500: '#22c55e', 600: '#16a34a', 700: '#15803d'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <link rel="stylesheet" href="css/style.css">
     <!-- FITUR BARU: tema retro Windows 98 per-akun (lihat Pengaturan > Kelola Users) -->
     <link rel="stylesheet" href="css/win98.css">
 
+    <!-- Leaflet CSS for Interactive Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+
     <!-- Theme init (sebelum render agar tidak flash) -->
     <script>
         (function () {
-            var saved = localStorage.getItem('theme');
-            if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                document.documentElement.classList.add('dark');
+            function applyTheme() {
+                var saved = localStorage.getItem('theme');
+                if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            }
+            applyTheme();
+
+            // Listen for system theme changes and update automatically in real-time
+            var mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+            if (mediaQuery.addEventListener) {
+                mediaQuery.addEventListener('change', function () {
+                    applyTheme();
+                });
+            } else if (mediaQuery.addListener) {
+                mediaQuery.addListener(function () {
+                    applyTheme();
+                });
             }
         })();
     </script>
@@ -158,8 +199,11 @@
     <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js" crossorigin></script>
     <script src="https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/Recharts.min.js" crossorigin></script>
 
-    <!-- app.js DULU, baru auth.js -->
+    <!-- app.js DULU, baru landing.js & auth.js -->
     <script src="js/app.js"></script>
+    <!-- Leaflet JS for Interactive Map -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
+    <script src="js/landing.js"></script>
     <script src="js/auth.js"></script>
 
     <!-- DataCache: cache bersama utk koleksi 'obat' & 'pasien' agar
@@ -168,6 +212,9 @@
 
     <!-- SearchableSelect: tambah fitur ketik-untuk-cari di dropdown yang datanya banyak -->
     <script src="js/utils/searchableSelect.js"></script>
+
+    <!-- ThermalPrinter: cetak langsung ke printer termal via Web Bluetooth -->
+    <script src="js/utils/thermalPrinter.js"></script>
 
     <!-- AuditLog: jejak audit sederhana untuk transaksi keuangan penting
          (approve pengeluaran, jurnal manual, payroll, lunasi hutang/piutang, dst) -->

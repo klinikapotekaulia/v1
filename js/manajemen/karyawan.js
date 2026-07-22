@@ -171,6 +171,12 @@ window.AppManajemenKaryawan = {
             return;
         }
 
+        var oldUserId = null;
+        if (isEdit) {
+            var oldK = AppManajemenKaryawan.data.find(x => x.id === idField.value);
+            if (oldK) oldUserId = oldK.userId;
+        }
+
         Utils.toast('Menyimpan...', 'info');
         var p;
         if (isEdit) {
@@ -181,15 +187,28 @@ window.AppManajemenKaryawan = {
         }
 
         p.then((docRef) => {
-            // FIX: untuk karyawan BARU, docRef.id adalah ID dokumen baru. Sebelumnya selalu null.
             var karyawanIdFinal = isEdit ? idField.value : (docRef && docRef.id ? docRef.id : null);
-            if (userId) {
-                var userRef = db.collection('users').doc(userId);
-                userRef.update({ karyawanId: karyawanIdFinal, nama: obj.nama });
+            var batch = db.batch();
+            
+            // Unlink akun lama jika ada perubahan link
+            if (oldUserId && oldUserId !== userId) {
+                batch.update(db.collection('users').doc(oldUserId), { karyawanId: null });
             }
-            Utils.toast('Karyawan berhasil disimpan!', 'success');
-            Utils.closeModal();
-            AppManajemenKaryawan.init();
+            // Link akun baru jika dipilih
+            if (userId) {
+                batch.update(db.collection('users').doc(userId), { karyawanId: karyawanIdFinal, nama: obj.nama });
+            }
+            
+            batch.commit().then(() => {
+                Utils.toast('Karyawan berhasil disimpan & disinkronkan!', 'success');
+                Utils.closeModal();
+                AppManajemenKaryawan.init();
+            }).catch(err => {
+                console.error('Batch sync error:', err);
+                Utils.toast('Karyawan disimpan, sinkronisasi akun dilewati', 'warning');
+                Utils.closeModal();
+                AppManajemenKaryawan.init();
+            });
         }).catch(err => Utils.toast('Gagal: ' + err.message, 'error'));
     },
 

@@ -287,7 +287,7 @@ window.AppKlinikAntrian = {
             html += '<span class="w-2 h-2 rounded-full bg-' + stat.color + '-500"></span>' + stat.label + ' <span class="text-slate-400 font-normal">(' + filtered.length + ')</span>';
             html += '</h4>';
 
-            var isAdmin = (window.currentRole === 'admin' || window.currentRole === 'keuangan');
+            var isAdmin = (window.currentRole === 'admin' || window.currentRole === 'keuangan' || window.currentRole === 'psa');
 
             if (isDokter) {
                 // TAMBAHAN (permintaan user): tampilan "etalase" — grid kartu yang lebih
@@ -333,7 +333,7 @@ window.AppKlinikAntrian = {
             // - Tombol "Selesai" dihapus total: status "selesai" hanya berubah otomatis saat dokter
             //   menyimpan Rekam Medis pasien tersebut.
             var isDokter = (window.currentRole === 'dokter');
-            var isAdmin  = (window.currentRole === 'admin' || window.currentRole === 'keuangan');
+            var isAdmin  = (window.currentRole === 'admin' || window.currentRole === 'keuangan' || window.currentRole === 'psa');
 
             filtered.forEach(function(a) {
                 var disabled = (a.status !== 'menunggu' && a.status !== 'dilayani') ? 'pointer-events-none opacity-60' : '';

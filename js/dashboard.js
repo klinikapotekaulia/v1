@@ -36,6 +36,7 @@ window.AppDashboard = {
         else if (role === 'apotek') this.renderApotek();
         else if (role === 'admin') this.renderAdmin();
         else if (role === 'keuangan') this.renderKeuangan();
+        else if (role === 'psa') this.renderPsa();
         else this.renderDefault();
     },
 
@@ -80,7 +81,8 @@ window.AppDashboard = {
             html += '<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">';
             html += '<div class="bg-white dark:bg-slate-800 p-5 rounded-xl border"><h3 class="font-bold mb-3 text-gray-800 dark:text-white">Aksi Cepat</h3>';
             html += '<button onclick="navigateTo(\'klinik/antrian\', \'Antrian\')" class="w-full bg-primary-600 text-white p-3 rounded-lg mb-2 flex items-center gap-2"><i data-lucide="list-ordered" class="w-4 h-4"></i> Buka Antrian</button>';
-            html += '<button onclick="navigateTo(\'klinik/rekamMedis\', \'Rekam Medis\')" class="w-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 p-3 rounded-lg flex items-center gap-2"><i data-lucide="file-heart" class="w-4 h-4"></i> Input Rekam Medis</button>';
+            html += '<button onclick="navigateTo(\'klinik/rekamMedis\', \'Rekam Medis\')" class="w-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 p-3 rounded-lg mb-2 flex items-center gap-2"><i data-lucide="file-heart" class="w-4 h-4"></i> Input Rekam Medis</button>';
+            html += '<button onclick="navigateTo(\'laporan/hutang\', \'Hutang Usaha\')" class="w-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 p-3 rounded-lg flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4"></i> Laporan Hutang & Pengajuan Bayar</button>';
             html += '</div></div>';
 
             document.getElementById('dashboard-content').innerHTML = html;
@@ -310,9 +312,347 @@ window.AppDashboard = {
 
             html += '<div class="bg-white dark:bg-slate-800 p-5 rounded-xl border"><h3 class="font-bold mb-3 text-gray-800 dark:text-white">Aksi Keuangan</h3>';
             html += '<button onclick="navigateTo(\'keuangan/payroll\', \'Payroll\')" class="w-full bg-primary-600 text-white p-3 rounded-lg mb-2 flex items-center gap-2"><i data-lucide="calculator" class="w-4 h-4"></i> Proses Payroll</button>';
+            html += '<button onclick="navigateTo(\'apotek/obatTerlaris\', \'Ringkasan Obat Terlaris\')" class="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 p-3 rounded-lg mb-2 flex items-center gap-2 font-semibold transition"><i data-lucide="trending-up" class="w-4 h-4 text-amber-600"></i> Ringkasan Obat Terlaris</button>';
             html += '<button onclick="navigateTo(\'keuangan/akuntansi\', \'Akuntansi\')" class="w-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 p-3 rounded-lg mb-2 flex items-center gap-2"><i data-lucide="book-open" class="w-4 h-4"></i> Buku Besar & Neraca</button>';
             html += '<button onclick="navigateTo(\'laporan/hutang\', \'Hutang Usaha\')" class="w-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 p-3 rounded-lg flex items-center gap-2"><i data-lucide="receipt" class="w-4 h-4"></i> Lunasi Hutang Usaha</button>';
             html += '</div></div>';
+
+            // Container for Audit Logs
+            html += '<div id="dashboard-audit-log-container" class="mt-6"></div>';
+
+            document.getElementById('dashboard-content').innerHTML = html;
+            lucide.createIcons();
+            self.initAuditLogs();
+
+            // Saring transaksi hari ini saja untuk grafik
+            var todayTrxs = [];
+            results[0].forEach(function(doc) {
+                if (doc.data().tanggal === today) {
+                    todayTrxs.push(doc);
+                }
+            });
+            self.renderDailySalesChart(todayTrxs);
+        }).catch(function(err) {
+            document.getElementById('dashboard-content').innerHTML = '<div class="bg-white dark:bg-slate-800 p-6 rounded-xl border text-center text-red-500">Gagal memuat dashboard: ' + (err && err.message ? err.message : err) + '</div>';
+        });
+    },
+
+    // ===== DASHBOARD PEMILIK SAHAM (PSA) =====
+    renderPsa: function() {
+        var self = this;
+        var today = Utils.today();
+        var startMonth = today.slice(0, 8) + '01';
+
+        var pTrx = db.collection('transaksi').where('tanggal', '>=', startMonth).where('tanggal', '<=', today).get();
+        var pKasKeluar = db.collection('kasKeluar').where('status', '==', 'approved').where('tanggal', '>=', startMonth).where('tanggal', '<=', today).get();
+        var pBeli = db.collection('pembelian').where('metodePembayaran', '==', 'tunai').where('tanggal', '>=', startMonth).where('tanggal', '<=', today).get();
+        var pHutangJatuhTempo = db.collection('pembelian').where('statusPelunasan', 'in', ['belum_lunas','sebagian','belum']).get();
+        var pPiutang = db.collection('piutangKaryawan').where('status', '==', 'belum_lunas').get();
+        var pObat = db.collection('obat').get();
+
+        Promise.all([pTrx, pKasKeluar, pBeli, pHutangJatuhTempo, pPiutang, pObat]).then(function(results) {
+            var omzetBulan = 0, hppBulan = 0;
+            results[0].forEach(function(doc) {
+                var t = doc.data();
+                var omzet = t.items ? t.items.reduce(function(s, i) { return s + (i.jumlah * i.hargaJual); }, 0) : 0;
+                var hpp = t.items ? t.items.reduce(function(s, i) { return s + (i.jumlah * (i.hargaBeli || 0)); }, 0) : 0;
+                omzetBulan += omzet + (t.totalRacik || 0) + (t.totalTindakan || 0) + (t.jasaResep || 0);
+                hppBulan += hpp;
+            });
+
+            var bebanOp = 0;
+            results[1].forEach(function(doc) { bebanOp += doc.data().jumlah || 0; });
+
+            var beliTunai = 0;
+            results[2].forEach(function(doc) { beliTunai += doc.data().totalHarga || 0; });
+
+            var labaKotor = omzetBulan - hppBulan;
+            var labaBersih = labaKotor - bebanOp;
+            var netCashFlow = omzetBulan - beliTunai - bebanOp;
+
+            var hutangAktif = results[3].size;
+            var piutangAktif = results[4].size;
+
+            var lowStockCount = 0;
+            results[5].forEach(function(doc) {
+                var o = doc.data();
+                if ((o.stok || 0) <= (o.stokMinimum || 0)) {
+                    lowStockCount++;
+                }
+            });
+
+            var html = '<div class="flex flex-col gap-1 mb-4">';
+            html += '  <h2 class="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2"><i data-lucide="shield" class="text-primary-600 w-6 h-6"></i> Dashboard Pemilik Saham (PSA)</h2>';
+            html += '  <p class="text-sm text-slate-500 dark:text-slate-400">Pengawasan performa finansial apotek, aset, liabilitas, ketersediaan stok, dan audit keamanan secara real-time.</p>';
+            html += '</div>';
+
+            // Stat Cards Grid
+            html += '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">';
+            html += self.card('Omzet Bulan Ini', Utils.formatRupiah(omzetBulan), 'trending-up', 'blue', 'Penjualan obat & jasa');
+            html += self.card('Estimasi Laba Bersih', Utils.formatRupiah(labaBersih), 'piggy-bank', labaBersih >= 0 ? 'emerald' : 'red', 'Laba kotor - Operasional');
+            html += self.card('Arus Kas Bersih', Utils.formatRupiah(netCashFlow), 'wallet', netCashFlow >= 0 ? 'indigo' : 'orange', 'Inflow - Outflow');
+            html += self.card('Stok Obat Kritis', lowStockCount + ' Item', 'alert-triangle', lowStockCount > 0 ? 'rose' : 'slate', 'Stok <= stok minimum');
+            html += self.card('Hutang Dagang', hutangAktif + ' Faktur', 'file-text', 'amber', 'Pembelian belum lunas');
+            html += self.card('Piutang Karyawan', piutangAktif + ' Aktif', 'user-minus', 'purple', 'Piutang belum lunas');
+            html += '</div>';
+
+            // Chart Ringkasan Penjualan
+            html += '<div class="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 mb-6 shadow-sm">';
+            html += '  <div id="daily-sales-chart" class="w-full" style="height:440px"></div>';
+            html += '</div>';
+
+            // ===== WIDGET RINGKASAN INVESTASI PSA =====
+            var nilaiInventaris = 0;
+            results[5].forEach(function(doc) {
+                var o = doc.data();
+                nilaiInventaris += (parseFloat(o.stok) || 0) * (parseFloat(o.hpp) || 0);
+            });
+            var asetPeralatan = 50000000; // Baseline peralatan medis & apotek
+            var asetPerlengkapan = 8500000; // Baseline perlengkapan & ATK
+            var estimasiKas = 150000000 + netCashFlow; // Modal kas dasar + cash flow berjalan bulan ini
+            var totalAset = estimasiKas + nilaiInventaris + asetPeralatan + asetPerlengkapan;
+
+            // Set state untuk interaktivitas dividen di tingkat window agar tombol interaktif bekerja langsung
+            window.AppDashboardPsaState = {
+                labaBersih: labaBersih,
+                changeRatio: function(ratio) {
+                    var laba = this.labaBersih;
+                    var divVal = laba > 0 ? (laba * ratio) : 0;
+                    var retainedVal = laba > 0 ? (laba * (1 - ratio)) : laba;
+                    
+                    // Update label di UI secara dinamis
+                    var elDiv = document.getElementById('psa-projected-dividend');
+                    var elRetained = document.getElementById('psa-retained-earnings');
+                    if (elDiv) elDiv.textContent = Utils.formatRupiah(Math.round(divVal));
+                    if (elRetained) elRetained.textContent = Utils.formatRupiah(Math.round(retainedVal));
+                    
+                    // Update styling tombol aktif
+                    [30, 50, 70].forEach(function(r) {
+                        var btn = document.getElementById('ratio-' + r);
+                        if (btn) {
+                            if (r === Math.round(ratio * 100)) {
+                                btn.className = 'px-3 py-1 text-xs bg-primary-600 text-white rounded-md font-semibold shadow-sm transition-all';
+                            } else {
+                                btn.className = 'px-3 py-1 text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600/80 transition-all';
+                            }
+                        }
+                    });
+                }
+            };
+
+            var initialDividend = labaBersih > 0 ? (labaBersih * 0.50) : 0;
+            var initialRetained = labaBersih > 0 ? (labaBersih * 0.50) : labaBersih;
+
+            html += '<div class="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 mb-6 shadow-sm">';
+            html += '  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 dark:border-slate-700/60 pb-4 mb-5 gap-3">';
+            html += '    <div>';
+            html += '      <h3 class="text-base font-bold text-gray-800 dark:text-white flex items-center gap-2"><i data-lucide="line-chart" class="w-5 h-5 text-emerald-500"></i> Ringkasan Investasi & Portofolio PSA</h3>';
+            html += '      <p class="text-xs text-slate-500 dark:text-slate-400">Ikhtisar aset riil, estimasi pembagian dividen berkala, dan rincian alokasi aset fisik apotek.</p>';
+            html += '    </div>';
+            html += '    <div class="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/40 p-1.5 rounded-lg border border-slate-100 dark:border-slate-700/50">';
+            html += '      <span class="text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500 px-2">Payout Ratio:</span>';
+            html += '      <button id="ratio-30" onclick="window.AppDashboardPsaState.changeRatio(0.30)" class="px-3 py-1 text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600/80 transition-all">30%</button>';
+            html += '      <button id="ratio-50" onclick="window.AppDashboardPsaState.changeRatio(0.50)" class="px-3 py-1 text-xs bg-primary-600 text-white rounded-md font-semibold shadow-sm transition-all">50%</button>';
+            html += '      <button id="ratio-70" onclick="window.AppDashboardPsaState.changeRatio(0.70)" class="px-3 py-1 text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600/80 transition-all">70%</button>';
+            html += '    </div>';
+            html += '  </div>';
+
+            html += '  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">';
+            
+            // Kolom 1: Aset & Kekayaan Riil
+            html += '    <div class="space-y-4 md:border-r border-slate-100 dark:border-slate-700/60 pr-0 md:pr-6">';
+            html += '      <span class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">1. Total Alokasi Aset</span>';
+            html += '      <div class="p-4 bg-slate-50 dark:bg-slate-900/30 rounded-xl border border-slate-100 dark:border-slate-700/50">';
+            html += '        <span class="text-xs text-slate-400 dark:text-slate-500">Nilai Aset Konsolidasi</span>';
+            html += '        <p class="text-xl font-black text-slate-800 dark:text-white mt-1">' + Utils.formatRupiah(totalAset) + '</p>';
+            html += '      </div>';
+            html += '      <div class="space-y-2.5 px-1">';
+            html += '        <div class="flex justify-between items-center text-xs">';
+            html += '          <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-primary-500"></span>Kas & Bank (Likuid)</span>';
+            html += '          <span class="font-semibold text-slate-700 dark:text-slate-300">' + Utils.formatRupiah(estimasiKas) + '</span>';
+            html += '        </div>';
+            html += '        <div class="flex justify-between items-center text-xs">';
+            html += '          <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>Stok Obat (Aset Lancar)</span>';
+            html += '          <span class="font-semibold text-slate-700 dark:text-slate-300">' + Utils.formatRupiah(nilaiInventaris) + '</span>';
+            html += '        </div>';
+            html += '        <div class="flex justify-between items-center text-xs">';
+            html += '          <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>Aset Peralatan (Tetap)</span>';
+            html += '          <span class="font-semibold text-slate-700 dark:text-slate-300">' + Utils.formatRupiah(asetPeralatan) + '</span>';
+            html += '        </div>';
+            html += '        <div class="flex justify-between items-center text-xs">';
+            html += '          <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>Aset Perlengkapan (Lancar)</span>';
+            html += '          <span class="font-semibold text-slate-700 dark:text-slate-300">' + Utils.formatRupiah(asetPerlengkapan) + '</span>';
+            html += '        </div>';
+            html += '      </div>';
+            html += '    </div>';
+
+            // Kolom 2: Proyeksi Dividen Bulanan
+            html += '    <div class="space-y-4 md:border-r border-slate-100 dark:border-slate-700/60 pr-0 md:pr-6">';
+            html += '      <span class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">2. Proyeksi Dividen Bulanan</span>';
+            html += '      <div class="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-100/50 dark:border-emerald-900/30">';
+            html += '        <span class="text-xs text-emerald-600 dark:text-emerald-400">Estimasi Dividen Diterima</span>';
+            html += '        <p id="psa-projected-dividend" class="text-xl font-black text-emerald-700 dark:text-emerald-300 mt-1">' + Utils.formatRupiah(Math.round(initialDividend)) + '</p>';
+            html += '      </div>';
+            html += '      <div class="space-y-2.5 px-1">';
+            html += '        <div class="flex justify-between items-center text-xs">';
+            html += '          <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1.5"><i data-lucide="percent" class="w-3.5 h-3.5 text-emerald-500"></i> Rasio Distribusi</span>';
+            html += '          <span class="font-semibold text-slate-700 dark:text-slate-300">Default 50%</span>';
+            html += '        </div>';
+            html += '        <div class="flex justify-between items-center text-xs">';
+            html += '          <span class="text-slate-500 dark:text-slate-400 flex items-center gap-1.5"><i data-lucide="landmark" class="w-3.5 h-3.5 text-indigo-500"></i> Laba Ditahan (Ekspansi)</span>';
+            html += '          <span id="psa-retained-earnings" class="font-semibold text-slate-700 dark:text-slate-300">' + Utils.formatRupiah(Math.round(initialRetained)) + '</span>';
+            html += '        </div>';
+            html += '      </div>';
+            html += '    </div>';
+
+            // Kolom 3: Rincian Nilai Aset Fisik
+            html += '    <div class="space-y-4">';
+            html += '      <span class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">3. Rincian Nilai Aset Fisik</span>';
+            
+            var asetObat = nilaiInventaris;
+            var totalAsetFisik = asetObat + asetPeralatan + asetPerlengkapan;
+
+            var pctObat = totalAsetFisik > 0 ? Math.round((asetObat / totalAsetFisik) * 100) : 0;
+            var pctPeralatan = totalAsetFisik > 0 ? Math.round((asetPeralatan / totalAsetFisik) * 100) : 0;
+            var pctPerlengkapan = totalAsetFisik > 0 ? Math.round((asetPerlengkapan / totalAsetFisik) * 100) : 0;
+
+            html += '      <div class="space-y-3">';
+            // Aset Obat
+            html += '        <div>';
+            html += '          <div class="flex justify-between text-xs mb-1">';
+            html += '            <span class="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-indigo-500"></span>Total Aset Obat</span>';
+            html += '            <span class="font-bold text-slate-800 dark:text-slate-200">' + Utils.formatRupiah(Math.round(asetObat)) + ' (' + pctObat + '%)</span>';
+            html += '          </div>';
+            html += '          <div class="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden">';
+            html += '            <div class="bg-indigo-500 h-full rounded-full" style="width: ' + pctObat + '%"></div>';
+            html += '          </div>';
+            html += '        </div>';
+
+            // Aset Peralatan
+            html += '        <div>';
+            html += '          <div class="flex justify-between text-xs mb-1">';
+            html += '            <span class="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Total Aset Peralatan</span>';
+            html += '            <span class="font-bold text-slate-800 dark:text-slate-200">' + Utils.formatRupiah(Math.round(asetPeralatan)) + ' (' + pctPeralatan + '%)</span>';
+            html += '          </div>';
+            html += '          <div class="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden">';
+            html += '            <div class="bg-emerald-500 h-full rounded-full" style="width: ' + pctPeralatan + '%"></div>';
+            html += '          </div>';
+            html += '        </div>';
+
+            // Aset Perlengkapan
+            html += '        <div>';
+            html += '          <div class="flex justify-between text-xs mb-1">';
+            html += '            <span class="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span>Total Aset Perlengkapan</span>';
+            html += '            <span class="font-bold text-slate-800 dark:text-slate-200">' + Utils.formatRupiah(Math.round(asetPerlengkapan)) + ' (' + pctPerlengkapan + '%)</span>';
+            html += '          </div>';
+            html += '          <div class="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden">';
+            html += '            <div class="bg-amber-500 h-full rounded-full" style="width: ' + pctPerlengkapan + '%"></div>';
+            html += '          </div>';
+            html += '        </div>';
+
+            html += '      </div>';
+            html += '    </div>';
+
+            html += '  </div>';
+            html += '</div>';
+
+            html += '<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">';
+            // Left Card: Financial breakdown
+            html += '  <div class="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">';
+            html += '    <h3 class="font-bold mb-4 text-gray-800 dark:text-white flex items-center gap-2"><i data-lucide="activity" class="w-5 h-5 text-indigo-500"></i> Kesehatan Finansial & Aset</h3>';
+            html += '    <div class="space-y-3.5">';
+            html += '      <div class="flex justify-between text-sm"><span class="text-slate-500 flex items-center gap-1.5"><i data-lucide="plus-circle" class="w-4 h-4 text-green-500"></i> Kas Masuk (Omzet)</span><span class="font-bold text-green-600">+ ' + Utils.formatRupiah(omzetBulan) + '</span></div>';
+            html += '      <div class="flex justify-between text-sm border-b pb-2"><span class="text-slate-500 flex items-center gap-1.5"><i data-lucide="minus-circle" class="w-4 h-4 text-red-500"></i> Pembelian Tunai</span><span class="font-bold text-red-600">- ' + Utils.formatRupiah(beliTunai) + '</span></div>';
+            html += '      <div class="flex justify-between text-sm border-b pb-2"><span class="text-slate-500 flex items-center gap-1.5"><i data-lucide="minus-circle" class="w-4 h-4 text-orange-500"></i> Beban Operasional</span><span class="font-bold text-red-600">- ' + Utils.formatRupiah(bebanOp) + '</span></div>';
+            html += '      <div class="flex justify-between text-sm border-b pb-2"><span class="text-slate-500 flex items-center gap-1.5"><i data-lucide="award" class="w-4 h-4 text-blue-500"></i> Estimasi HPP</span><span class="font-bold text-slate-700 dark:text-slate-300">- ' + Utils.formatRupiah(hppBulan) + '</span></div>';
+            html += '      <div class="flex justify-between text-sm border-b pb-2"><span class="text-slate-500 flex items-center gap-1.5"><i data-lucide="coins" class="w-4 h-4 text-yellow-500"></i> Estimasi Laba Kotor</span><span class="font-bold text-yellow-600">' + Utils.formatRupiah(labaKotor) + '</span></div>';
+            html += '      <div class="flex justify-between border-t mt-4 pt-3 text-sm font-bold bg-slate-50 dark:bg-slate-900/40 p-3 rounded-lg">';
+            html += '        <span class="flex items-center gap-1.5"><i data-lucide="badge-dollar-sign" class="w-4 h-4 text-primary-500"></i> Net Profit Margin</span>';
+            var marginPct = omzetBulan > 0 ? ((labaBersih / omzetBulan) * 100).toFixed(1) : '0';
+            html += '        <span class="' + (labaBersih >= 0 ? 'text-green-600' : 'text-red-600') + '">' + Utils.formatRupiah(labaBersih) + ' (' + marginPct + '%)</span>';
+            html += '      </div>';
+            html += '    </div>';
+            html += '  </div>';
+
+            // Right Card: Strategic actions
+            html += '  <div class="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">';
+            html += '    <h3 class="font-bold mb-4 text-gray-800 dark:text-white flex items-center gap-2"><i data-lucide="compass" class="w-5 h-5 text-emerald-500"></i> Navigasi & Pengawasan PSA</h3>';
+            html += '    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">';
+            
+            // 1. Laporan Keuangan (fixed path)
+            html += '      <button onclick="navigateTo(\'keuangan/laporanKeuangan\', \'Laporan Keuangan\')" class="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/30 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl border border-slate-150 dark:border-slate-700/60 transition-all text-left group">';
+            html += '        <div class="flex items-center gap-3">';
+            html += '          <div class="p-2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg"><i data-lucide="bar-chart-3" class="w-5 h-5"></i></div>';
+            html += '          <div><p class="font-semibold text-xs text-slate-800 dark:text-slate-200">Lap. Keuangan</p><p class="text-[10px] text-slate-400">Neraca & Buku Kas</p></div>';
+            html += '        </div>';
+            html += '        <i data-lucide="arrow-right" class="w-4 h-4 text-slate-400 group-hover:text-primary-500 group-hover:translate-x-1 transition-transform"></i>';
+            html += '      </button>';
+
+            // 2. Rangkuman Aktivitas (fixed path)
+            html += '      <button onclick="navigateTo(\'keuangan/rangkumanBulanan\', \'Rangkuman Aktivitas\')" class="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/30 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl border border-slate-150 dark:border-slate-700/60 transition-all text-left group">';
+            html += '        <div class="flex items-center gap-3">';
+            html += '          <div class="p-2 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg"><i data-lucide="calendar-range" class="w-5 h-5"></i></div>';
+            html += '          <div><p class="font-semibold text-xs text-slate-800 dark:text-slate-200">Rangkuman Aktivitas</p><p class="text-[10px] text-slate-400">Analisis Kinerja Bulanan</p></div>';
+            html += '        </div>';
+            html += '        <i data-lucide="arrow-right" class="w-4 h-4 text-slate-400 group-hover:text-primary-500 group-hover:translate-x-1 transition-transform"></i>';
+            html += '      </button>';
+
+            // 3. Jejak Audit
+            html += '      <button onclick="navigateTo(\'laporan/auditTrail\', \'Jejak Audit\')" class="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/30 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl border border-slate-150 dark:border-slate-700/60 transition-all text-left group">';
+            html += '        <div class="flex items-center gap-3">';
+            html += '          <div class="p-2 bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-lg"><i data-lucide="history" class="w-5 h-5"></i></div>';
+            html += '          <div><p class="font-semibold text-xs text-slate-800 dark:text-slate-200">Jejak Audit</p><p class="text-[10px] text-slate-400">Log Aktivitas Keamanan</p></div>';
+            html += '        </div>';
+            html += '        <i data-lucide="arrow-right" class="w-4 h-4 text-slate-400 group-hover:text-primary-500 group-hover:translate-x-1 transition-transform"></i>';
+            html += '      </button>';
+
+            // 4. Rekam Medis (added)
+            html += '      <button onclick="navigateTo(\'klinik/rekamMedis\', \'Rekam Medis\')" class="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/30 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl border border-slate-150 dark:border-slate-700/60 transition-all text-left group">';
+            html += '        <div class="flex items-center gap-3">';
+            html += '          <div class="p-2 bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-lg"><i data-lucide="file-heart" class="w-5 h-5"></i></div>';
+            html += '          <div><p class="font-semibold text-xs text-slate-800 dark:text-slate-200">Rekam Medis</p><p class="text-[10px] text-slate-400">Catatan Medis Pasien</p></div>';
+            html += '        </div>';
+            html += '        <i data-lucide="arrow-right" class="w-4 h-4 text-slate-400 group-hover:text-primary-500 group-hover:translate-x-1 transition-transform"></i>';
+            html += '      </button>';
+
+            // 5. Data Karyawan (added)
+            html += '      <button onclick="navigateTo(\'manajemen/karyawan\', \'Karyawan\')" class="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/30 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl border border-slate-150 dark:border-slate-700/60 transition-all text-left group">';
+            html += '        <div class="flex items-center gap-3">';
+            html += '          <div class="p-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-lg"><i data-lucide="user-check" class="w-5 h-5"></i></div>';
+            html += '          <div><p class="font-semibold text-xs text-slate-800 dark:text-slate-200">Data Karyawan</p><p class="text-[10px] text-slate-400">Kelola Staf & Kehadiran</p></div>';
+            html += '        </div>';
+            html += '        <i data-lucide="arrow-right" class="w-4 h-4 text-slate-400 group-hover:text-primary-500 group-hover:translate-x-1 transition-transform"></i>';
+            html += '      </button>';
+
+            // 6. Display Antrian (added)
+            html += '      <button onclick="navigateTo(\'pengaturan/displayAntrian\', \'Display Antrian\')" class="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/30 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl border border-slate-150 dark:border-slate-700/60 transition-all text-left group">';
+            html += '        <div class="flex items-center gap-3">';
+            html += '          <div class="p-2 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-lg"><i data-lucide="tv" class="w-5 h-5"></i></div>';
+            html += '          <div><p class="font-semibold text-xs text-slate-800 dark:text-slate-200">Display Antrian</p><p class="text-[10px] text-slate-400">Pengaturan Layar Antrean</p></div>';
+            html += '        </div>';
+            html += '        <i data-lucide="arrow-right" class="w-4 h-4 text-slate-400 group-hover:text-primary-500 group-hover:translate-x-1 transition-transform"></i>';
+            html += '      </button>';
+
+            // 7. SatuSehat Kemenkes
+            html += '      <button onclick="navigateTo(\'pengaturan/satusehat\', \'SatuSehat Kemenkes\')" class="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/30 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl border border-slate-150 dark:border-slate-700/60 transition-all text-left group">';
+            html += '        <div class="flex items-center gap-3">';
+            html += '          <div class="p-2 bg-teal-500/10 text-teal-600 dark:text-teal-400 rounded-lg"><i data-lucide="heart-pulse" class="w-5 h-5"></i></div>';
+            html += '          <div><p class="font-semibold text-xs text-slate-800 dark:text-slate-200">SatuSehat Kemenkes</p><p class="text-[10px] text-slate-400">Integrasi Data Rekam Medis</p></div>';
+            html += '        </div>';
+            html += '        <i data-lucide="arrow-right" class="w-4 h-4 text-slate-400 group-hover:text-primary-500 group-hover:translate-x-1 transition-transform"></i>';
+            html += '      </button>';
+
+            // 8. Ringkasan Obat Terlaris
+            html += '      <button onclick="navigateTo(\'apotek/obatTerlaris\', \'Ringkasan Obat Terlaris\')" class="flex items-center justify-between p-3.5 bg-amber-500/10 dark:bg-amber-950/20 hover:bg-amber-500/20 rounded-xl border border-amber-200 dark:border-amber-800 transition-all text-left group">';
+            html += '        <div class="flex items-center gap-3">';
+            html += '          <div class="p-2 bg-amber-500/20 text-amber-700 dark:text-amber-300 rounded-lg"><i data-lucide="trending-up" class="w-5 h-5"></i></div>';
+            html += '          <div><p class="font-bold text-xs text-slate-800 dark:text-slate-100">Obat Terlaris</p><p class="text-[10px] text-amber-700 dark:text-amber-300 font-medium">Rank Sales Laku - Tidak Laku</p></div>';
+            html += '        </div>';
+            html += '        <i data-lucide="arrow-right" class="w-4 h-4 text-amber-600 group-hover:translate-x-1 transition-transform"></i>';
+            html += '      </button>';
+            html += '    </div>';
+            html += '  </div>';
+            html += '</div>';
 
             // Container for Audit Logs
             html += '<div id="dashboard-audit-log-container" class="mt-6"></div>';
@@ -344,9 +684,9 @@ window.AppDashboard = {
         var container = document.getElementById('dashboard-audit-log-container');
         if (!container) return;
 
-        // Keamanan tambahan di client: cek apakah role pengguna memang admin atau keuangan
+        // Keamanan tambahan di client: cek apakah role pengguna memang admin, keuangan, atau psa
         var role = window.currentRole || 'apotek';
-        if (role !== 'admin' && role !== 'keuangan') {
+        if (role !== 'admin' && role !== 'keuangan' && role !== 'psa') {
             container.innerHTML = '';
             container.classList.add('hidden');
             return;
@@ -368,7 +708,7 @@ window.AppDashboard = {
                 self.applyAuditLogFilter();
             })
             .catch(function(err) {
-                console.error('Dashboard Audit Log fetch error:', err);
+                console.warn('Dashboard Audit Log fetch status:', err.message || err);
                 if (err.code === 'permission-denied' || err.message.indexOf('permissions') !== -1) {
                     container.innerHTML = '<div class="bg-white dark:bg-slate-800 rounded-xl border border-amber-200 dark:border-amber-950 p-6 text-center text-amber-600 dark:text-amber-400 text-sm">Anda tidak memiliki hak akses untuk melihat riwayat aktivitas di dashboard ini.</div>';
                 } else {
@@ -572,12 +912,27 @@ window.AppDashboard = {
 
         // Check if React, ReactDOM and Recharts are loaded
         if (!window.React || !window.ReactDOM || !window.Recharts) {
+            // FIX: sebelumnya retry setTimeout tanpa batas -- kalau CDN (unpkg.com/
+            // cdn.jsdelivr.net) benar-benar gagal dimuat (mis. tidak ada koneksi
+            // internet, atau domain diblokir firewall), fungsi ini akan retry setiap
+            // 300ms SELAMANYA tanpa pernah memberi tahu user apa yang salah -- baterai
+            // & CPU device kasir terkuras diam-diam di background.
+            this._chartLibRetryCount = (this._chartLibRetryCount || 0) + 1;
+            if (this._chartLibRetryCount > 30) { // ~9 detik total
+                container.innerHTML = '<div class="flex flex-col items-center justify-center h-full text-slate-400 text-sm py-12 gap-2">' +
+                    '<span>Gagal memuat pustaka grafik (Recharts). Periksa koneksi internet Anda.</span>' +
+                    '<button onclick="window.AppDashboard._chartLibRetryCount=0; window.AppDashboard.renderDailySalesChart(' + 'window.AppDashboard._lastChartData || null' + ')" class="text-primary-600 dark:text-primary-400 underline">Coba lagi</button>' +
+                    '</div>';
+                return;
+            }
             container.innerHTML = '<div class="flex items-center justify-center h-full text-slate-400 text-sm py-12">Memuat pustaka grafik (Recharts)...</div>';
             setTimeout(function() {
                 window.AppDashboard.renderDailySalesChart(snapOrArray);
             }, 300);
             return;
         }
+        this._chartLibRetryCount = 0;
+        this._lastChartData = snapOrArray;
 
         // Helper: Format date for display
         function formatDateDisplay(dateStr) {

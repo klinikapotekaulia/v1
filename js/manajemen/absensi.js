@@ -11,7 +11,7 @@ window.AppManajemenAbsensi = {
 
     render: function() {
         var role = window.currentRole || 'apotek';
-        var isStaff = (role === 'klinik' || role === 'apotek');
+        var isStaff = (role === 'klinik' || role === 'apotek' || role === 'admin');
 
         var html = '<div class="page-enter max-w-5xl">';
         html += '  <h2 class="text-xl font-bold text-gray-800 dark:text-white mb-1">Absensi Karyawan</h2>';
@@ -25,11 +25,12 @@ window.AppManajemenAbsensi = {
             html += '</div>';
         }
 
-        // FIX (permintaan user): tombol Input Manual sekarang tersedia untuk SEMUA akun/role,
-        // tidak lagi khusus admin.
-        html += '<div class="flex justify-end mb-4">';
-        html += '<button onclick="AppManajemenAbsensi.openManualForm()" class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2"><i data-lucide="user-plus" class="w-4 h-4"></i> Input Manual Absen</button>';
-        html += '</div>';
+        // FITUR BARU: tombol Input Manual sekarang hanya tersedia untuk akun PSA dan Keuangan (permintaan user).
+        if (role === 'psa' || role === 'keuangan') {
+            html += '<div class="flex justify-end mb-4">';
+            html += '<button onclick="AppManajemenAbsensi.openManualForm()" class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2"><i data-lucide="user-plus" class="w-4 h-4"></i> Input Manual Absen</button>';
+            html += '</div>';
+        }
 
         html += '  <div id="absensi-list"><div class="flex justify-center py-10"><div class="spinner"></div></div></div>';
         html += '</div>';
@@ -54,7 +55,7 @@ window.AppManajemenAbsensi = {
             self.renderList();
             
             // Render tombol absensi diri jika staff
-            if (window.currentRole === 'klinik' || window.currentRole === 'apotek') {
+            if (window.currentRole === 'klinik' || window.currentRole === 'apotek' || window.currentRole === 'admin') {
                 self.renderMyAbsensi();
             }
         }).catch(err => Utils.toast('Gagal memuat: ' + err.message, 'error'));
@@ -122,6 +123,9 @@ window.AppManajemenAbsensi = {
         var container = document.getElementById('absensi-list');
         if (!container) return;
 
+        var role = window.currentRole || 'apotek';
+        var canManage = (role === 'keuangan' || role === 'psa');
+
         var html = '<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">';
         html += '<table class="w-full text-sm">';
         html += '<thead><tr class="bg-slate-50 dark:bg-slate-900 text-xs text-slate-500 uppercase tracking-wider">';
@@ -129,7 +133,7 @@ window.AppManajemenAbsensi = {
         html += '<th class="px-4 py-3 text-center">Jam Masuk</th>';
         html += '<th class="px-4 py-3 text-center">Jam Pulang</th>';
         html += '<th class="px-4 py-3 text-center">Status</th>';
-        if (window.currentRole === 'admin') html += '<th class="px-4 py-3 text-right">Aksi</th>';
+        if (canManage) html += '<th class="px-4 py-3 text-right">Aksi</th>';
         html += '</tr></thead><tbody>';
         
         // Gabungkan list karyawan dengan data absensi
@@ -150,14 +154,14 @@ window.AppManajemenAbsensi = {
                 html += '<td class="px-4 py-3 text-center text-slate-600 dark:text-slate-300">' + jamMasuk + '</td>';
                 html += '<td class="px-4 py-3 text-center text-slate-600 dark:text-slate-300">' + jamPulang + '</td>';
                 html += '<td class="px-4 py-3 text-center">' + statusBadge + '</td>';
-                if (window.currentRole === 'admin') {
+                if (canManage) {
                     html += '<td class="px-4 py-3 text-right"><button onclick="AppManajemenAbsensi.hapusAbsen(\'' + a.id + '\')" class="text-xs text-red-500 hover:underline">Hapus</button></td>';
                 }
                 html += '</tr>';
             });
-
+ 
             // FIX: implementasikan baris 'Belum Absen' utk karyawan aktif yg belum check-in.
-            if (window.currentRole === 'admin') {
+            if (canManage) {
                 this.karyawanList.forEach(function(k) {
                     var hadir = (k.userId && karyawanHadirIds.indexOf(k.userId) !== -1) ||
                                 (k.id && karyawanHadirIds.indexOf(k.id) !== -1);
@@ -181,6 +185,11 @@ window.AppManajemenAbsensi = {
 
     // ===== INPUT MANUAL OLEH ADMIN =====
     openManualForm: function() {
+        var role = window.currentRole || 'apotek';
+        if (role !== 'psa' && role !== 'keuangan') {
+            Utils.toast('Anda tidak memiliki akses untuk input manual absen.', 'error');
+            return;
+        }
         var html = '<div class="p-6">';
         html += '<div class="flex items-center justify-between mb-5"><h3 class="text-lg font-semibold text-gray-800 dark:text-white">Input Manual Absen</h3><button onclick="Utils.closeModal()" class="p-1.5 hover:bg-slate-100 rounded-lg"><i data-lucide="x" class="w-5 h-5 text-slate-400"></i></button></div>';
         html += '<form id="form-manual" class="space-y-4">';
@@ -211,6 +220,11 @@ window.AppManajemenAbsensi = {
     },
 
     simpanManual: function() {
+        var role = window.currentRole || 'apotek';
+        if (role !== 'psa' && role !== 'keuangan') {
+            Utils.toast('Anda tidak memiliki akses untuk menyimpan absen manual.', 'error');
+            return;
+        }
         var select = document.getElementById('man-kary');
         var karyId = select.value;
         var namaKary = select.options[select.selectedIndex].getAttribute('data-nama');
@@ -239,6 +253,11 @@ window.AppManajemenAbsensi = {
     },
 
     hapusAbsen: function(id) {
+        var role = window.currentRole || 'apotek';
+        if (role !== 'keuangan' && role !== 'psa') {
+            Utils.toast('Anda tidak memiliki akses untuk menghapus data absensi.', 'error');
+            return;
+        }
         if (!confirm('Hapus data absensi ini?')) return;
         db.collection('absensi').doc(id).delete().then(() => {
             Utils.toast('Data dihapus.', 'info');

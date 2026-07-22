@@ -1,85 +1,139 @@
-/* css/style.css */
-
-:root {
-    --bg-main: #f8fafc;
-    --transition-speed: 0.2s;
-}
-
-body {
-    background-color: var(--bg-main);
-    transition: background-color var(--transition-speed) ease, color var(--transition-speed) ease;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-}
-
-/* ── Scrollbar ── */
-::-webkit-scrollbar           { width: 5px; height: 5px; }
-::-webkit-scrollbar-track     { background: transparent; }
-::-webkit-scrollbar-thumb     { background: #cbd5e1; border-radius: 99px; }
-.dark ::-webkit-scrollbar-thumb { background: #475569; }
-
-/* ── Page transition ── */
-.page-enter {
-    animation: fadeSlideIn 0.2s ease-out both;
-}
-@keyframes fadeSlideIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0);   }
-}
-
-/* ── Loading Spinner ── */
+/* Custom loading spinner styles */
 .spinner {
-    border: 3px solid #e2e8f0;
-    border-top-color: #0ea5e9;
-    border-radius: 50%;
-    width: 28px;
-    height: 28px;
-    animation: spin 0.7s linear infinite;
-}
-.dark .spinner {
-    border-color: #334155;
-    border-top-color: #38bdf8;
-}
-@keyframes spin {
-    to { transform: rotate(360deg); }
+  display: inline-block;
+  width: 2rem;
+  height: 2rem;
+  vertical-align: text-bottom;
+  border: 0.25em solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  -webkit-animation: spinner-border .75s linear infinite;
+  animation: spinner-border .75s linear infinite;
 }
 
-/* ── Toast / Snackbar ── */
-#app-toast {
-    animation: toastIn 0.25s ease-out;
-}
-@keyframes toastIn {
-    from { opacity: 0; transform: translateX(-50%) translateY(12px); }
-    to   { opacity: 1; transform: translateX(-50%) translateY(0);    }
+/* Custom sizes for spinner */
+.spinner.w-3.h-3 {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-width: 0.1em;
 }
 
-/* ── Active nav button highlight ── */
-.nav-btn.active,
-.nav-btn[class*="bg-primary"] {
-    font-weight: 600;
+.spinner.w-3\.5.h-3\.5 {
+  width: 0.875rem;
+  height: 0.875rem;
+  border-width: 0.125em;
 }
 
-/* ── Table responsive scroll ── */
-.table-wrapper {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+.spinner.w-4.h-4 {
+  width: 1rem;
+  height: 1rem;
+  border-width: 0.125em;
 }
 
-/* ── Print styles ── */
-@media print {
-    #sidebar, #mobile-sidebar, header, #sidebar-overlay, #app-toast { display: none !important; }
-    body { overflow: visible !important; }
-    #app-content { padding: 0; }
+@keyframes spinner-border {
+  to { transform: rotate(360deg); }
 }
 
-/* ── Popover open animation (dipakai js/chat.js untuk emoji picker) ──
-   Class aslinya (animate-in/fade-in/slide-in-from-bottom-2) berasal dari
-   plugin "tailwindcss-animate" yang tidak tersedia di build ini (sandbox
-   tanpa akses internet untuk npm install). Disediakan manual di sini
-   supaya popovernya tetap muncul dengan transisi halus. */
-.animate-in.fade-in.slide-in-from-bottom-2 {
-    animation: chatPopoverIn 0.15s ease-out both;
+@-webkit-keyframes spinner-border {
+  to { -webkit-transform: rotate(360deg); }
 }
-@keyframes chatPopoverIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0);   }
+
+/* Ensure smooth transitions */
+.transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
 }
+
+/* Scrollbar styling for a cleaner look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Ensure Hero Banner and Services (Layanan) images are always proportional with object-fit: cover */
+#landing-hero img,
+.hero-banner-img {
+  object-fit: cover !important;
+}
+
+#landing-clinic-services img,
+.services-section-img {
+  object-fit: cover !important;
+}
+
+/* Gallery and Doctor profile pictures object-fit cover */
+#landing-gallery img,
+#doctor-schedule-list img {
+  object-fit: cover !important;
+}
+
+/* Scroll Reveal Animation with clean bezier transition */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.8s cubic-bezier(0.21, 0.6, 0.35, 1), transform 0.8s cubic-bezier(0.21, 0.6, 0.35, 1);
+  will-change: opacity, transform;
+}
+
+.scroll-reveal.reveal-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Animation for Doctor Profile Cards and Schedule Cards */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Hover effects for a professional feel */
+.doctor-profile-card {
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.doctor-profile-card:hover {
+  transform: translateY(-6px) scale(1.015);
+  box-shadow: 0 20px 25px -5px rgba(16, 185, 129, 0.12), 0 10px 10px -5px rgba(16, 185, 129, 0.05);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.doctor-schedule-card {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.doctor-schedule-card:hover {
+  transform: translateY(-3px) scale(1.01);
+  box-shadow: 0 12px 20px -8px rgba(16, 185, 129, 0.18);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+

@@ -16,6 +16,7 @@ window.AppApotekObat = {
         html += '    <p class="text-sm text-slate-500 dark:text-slate-400">Master data obat, HPP, harga jual, dan stok</p>';
         html += '  </div>';
         html += '  <div class="flex flex-wrap gap-2">';
+        html += '    <button onclick="AppApotekObat.exportExcel()" class="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Export Data Obat</button>';
         html += '    <button onclick="AppApotekObat.downloadTemplate()" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> Template Excel</button>';
         html += '    <label class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2 cursor-pointer"><i data-lucide="upload" class="w-4 h-4"></i> Import Excel <input type="file" accept=".xlsx,.xls" class="hidden" onchange="AppApotekObat.handleFileUpload(event)"></label>';
         html += '    <button onclick="AppApotekObat.openForm()" class="bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2"><i data-lucide="plus" class="w-4 h-4"></i> Tambah Manual</button>';
@@ -81,9 +82,12 @@ window.AppApotekObat = {
             var safeName = (o.namaObat || '-').replace(/'/g, "\\'");
             var stokClass = (o.stok <= (o.stokMinimum || 0)) ? 'text-red-600 font-bold' : 'text-slate-800 dark:text-white font-medium';
             var expClass = o.expDate && new Date(o.expDate) < new Date() ? 'text-red-500' : 'text-slate-500 dark:text-slate-400';
+            var ppnBadge = o.isPPN !== false ? 
+                '<span class="text-[10px] bg-sky-50 dark:bg-sky-950 text-sky-600 dark:text-sky-400 px-1.5 py-0.5 rounded font-bold ml-1">PPN</span>' : 
+                '<span class="text-[10px] bg-slate-100 dark:bg-slate-850 text-slate-500 px-1.5 py-0.5 rounded font-bold ml-1">NON-PPN</span>';
 
             html += '<tr class="border-t border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50">';
-            html += '<td class="px-3 py-3"><p class="font-medium text-gray-800 dark:text-white">' + Utils.escapeHtml(o.namaObat) + '</p><p class="text-xs text-slate-400 font-mono">' + Utils.escapeHtml(o.kodeObat || '-') + '</p></td>';
+            html += '<td class="px-3 py-3"><p class="font-medium text-gray-800 dark:text-white">' + Utils.escapeHtml(o.namaObat) + '</p><p class="text-xs text-slate-400 font-mono flex items-center gap-1"><span>' + Utils.escapeHtml(o.kodeObat || '-') + '</span>' + ppnBadge + '</p></td>';
             html += '<td class="px-3 py-3 text-slate-500 dark:text-slate-400 hidden md:table-cell text-xs">' + Utils.escapeHtml(o.kategori || '-') + '</td>';
             html += '<td class="px-3 py-3 text-right text-slate-500 text-xs">' + Utils.formatRupiah(o.hpp) + '</td>';
             html += '<td class="px-3 py-3 text-right text-slate-800 dark:text-slate-200 text-xs">' + Utils.formatRupiah(o.hargaJual) + '</td>';
@@ -115,10 +119,15 @@ window.AppApotekObat = {
         html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Kode Obat</label><input type="text" id="fo-kode" value="' + Utils.escapeHtml(o.kodeObat || '') + '" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm" placeholder="OB-001"></div>';
         html += '</div>';
 
-        html += '<div class="grid grid-cols-3 gap-4">';
+        html += '<div class="grid grid-cols-4 gap-4">';
         html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Kategori</label><input type="text" id="fo-kat" value="' + Utils.escapeHtml(o.kategori || '') + '" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm" placeholder="Tablet, Sirup"></div>';
         html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Satuan</label><input type="text" id="fo-satuan" value="' + Utils.escapeHtml(o.satuan || '') + '" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm" placeholder="Strip, Botol"></div>';
         html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Exp Date</label><input type="date" id="fo-exp" value="' + (o.expDate || '') + '" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm"></div>';
+        html += '<div><label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Pajak PPN *</label>';
+        html += '<select id="fo-isppn" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-sm">';
+        html += '<option value="true" ' + (o.isPPN !== false ? 'selected' : '') + '>Kena PPN (11%)</option>';
+        html += '<option value="false" ' + (o.isPPN === false ? 'selected' : '') + '>Non-PPN (Bebas)</option>';
+        html += '</select></div>';
         html += '</div>';
 
         html += '<div class="grid grid-cols-3 gap-4">';
@@ -163,6 +172,7 @@ window.AppApotekObat = {
             kategori: document.getElementById('fo-kat').value.trim(),
             satuan: document.getElementById('fo-satuan').value.trim(),
             expDate: document.getElementById('fo-exp').value,
+            isPPN: document.getElementById('fo-isppn').value === 'true',
             hpp: parseFloat(document.getElementById('fo-hpp').value) || 0,
             hargaJual: parseFloat(document.getElementById('fo-jual').value) || 0,
             stokMinimum: parseFloat(document.getElementById('fo-min').value) || 0,
@@ -207,19 +217,69 @@ window.AppApotekObat = {
     },
 
     // ==========================================
-    // FITUR EXCEL IMPORT OBAT
+    // FITUR EXCEL IMPORT & EXPORT OBAT
     // ==========================================
     
+    exportExcel: function() {
+        if (!this.data || this.data.length === 0) {
+            Utils.toast('Tidak ada data obat untuk di-export.', 'error');
+            return;
+        }
+
+        var rows = [['Kode Obat', 'Nama Obat', 'Kategori', 'Satuan', 'HPP (Rp)', 'Harga Jual (Rp)', 'Stok Saat Ini', 'Stok Minimum', 'Exp Date (YYYY-MM-DD)', 'Kena PPN (Ya/Tidak)']];
+        this.data.forEach(function(o) {
+            rows.push([
+                o.kodeObat || '',
+                o.namaObat || '',
+                o.kategori || '',
+                o.satuan || '',
+                o.hpp || 0,
+                o.hargaJual || 0,
+                o.stok || 0,
+                o.stokMinimum || 0,
+                o.expDate || '',
+                o.isPPN !== false ? 'Ya' : 'Tidak'
+            ]);
+        });
+
+        var ws = XLSX.utils.aoa_to_sheet(rows);
+        ws['!cols'] = [{wch: 12}, {wch: 30}, {wch: 15}, {wch: 10}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 20}];
+        var wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Data Obat & Stock');
+
+        var tanggal = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(wb, 'Data_Obat_dan_Stock_Aulia_' + tanggal + '.xlsx');
+        Utils.toast('Data obat & stock berhasil diexport!', 'success');
+    },
+
     downloadTemplate: function() {
         var ws_data = [
-            ['Kode Obat', 'Nama Obat', 'Kategori', 'Satuan', 'HPP (Rp)', 'Harga Jual (Rp)', 'Stok Awal', 'Stok Minimum', 'Exp Date (YYYY-MM-DD)'],
-            ['OB-001', 'Paracetamol 500mg', 'Tablet', 'Strip', 5000, 8000, 100, 10, '2025-12-31'],
+            ['Kode Obat', 'Nama Obat', 'Kategori', 'Satuan', 'HPP (Rp)', 'Harga Jual (Rp)', 'Stok Awal', 'Stok Minimum', 'Exp Date (YYYY-MM-DD)', 'Kena PPN (Ya/Tidak)'],
+            ['OB-001', 'Paracetamol 500mg', 'Tablet', 'Strip', 5000, 8000, 100, 10, '2026-12-31', 'Ya'],
+            ['OB-002', 'Amoxicillin 500mg (Bebas PPN)', 'Kapsul', 'Strip', 12000, 18000, 150, 15, '2026-06-30', 'Tidak'],
+            ['OB-003', 'Minyak Kayu Putih 120ml', 'Cair', 'Botol', 32000, 42000, 50, 5, '2027-01-15', 'Ya'],
+            ['OB-004', 'Vitamin C 1000mg', 'Tablet Effervescent', 'Tube', 25000, 35000, 30, 5, '2026-09-20', 'Tidak']
         ];
         var ws = XLSX.utils.aoa_to_sheet(ws_data);
-        ws['!cols'] = [{wch: 12}, {wch: 30}, {wch: 12}, {wch: 10}, {wch: 12}, {wch: 15}, {wch: 12}, {wch: 15}, {wch: 20}];
+        
+        // Auto-fit column widths
+        ws['!cols'] = [
+            {wch: 15}, // Kode Obat
+            {wch: 35}, // Nama Obat
+            {wch: 15}, // Kategori
+            {wch: 12}, // Satuan
+            {wch: 15}, // HPP (Rp)
+            {wch: 15}, // Harga Jual (Rp)
+            {wch: 12}, // Stok Awal
+            {wch: 15}, // Stok Minimum
+            {wch: 25}, // Exp Date (YYYY-MM-DD)
+            {wch: 22}  // Kena PPN (Ya/Tidak)
+        ];
+        
         var wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Master Obat");
+        XLSX.utils.book_append_sheet(wb, ws, "Master Obat & Stock");
         XLSX.writeFile(wb, "Template_Import_Obat_Aulia.xlsx");
+        Utils.toast('Template Excel berhasil diunduh!', 'success');
     },
 
     handleFileUpload: function(event) {
@@ -239,17 +299,56 @@ window.AppApotekObat = {
                     return;
                 }
 
-                AppApotekObat.importData = jsonData.map(row => ({
-                    kodeObat: String(row['Kode Obat'] || '').trim(),
-                    namaObat: String(row['Nama Obat'] || '').trim(),
-                    kategori: String(row['Kategori'] || '').trim(),
-                    satuan: String(row['Satuan'] || '').trim(),
-                    hpp: parseFloat(row['HPP (Rp)']) || 0,
-                    hargaJual: parseFloat(row['Harga Jual (Rp)']) || 0,
-                    stok: parseInt(row['Stok Awal']) || 0,
-                    stokMinimum: parseInt(row['Stok Minimum']) || 0,
-                    expDate: String(row['Exp Date (YYYY-MM-DD)'] || '').trim()
-                })).filter(row => row.namaObat !== '' && row.hpp > 0);
+                // Helper helper-function for smart/fuzzy header matching
+                var getVal = function(row, keys) {
+                    for (var i = 0; i < keys.length; i++) {
+                        var k = keys[i];
+                        if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== "") {
+                            return row[k];
+                        }
+                    }
+                    return "";
+                };
+
+                AppApotekObat.importData = jsonData.map(function(row) {
+                    var kode = String(getVal(row, ['Kode Obat', 'Kode', 'KodeObat', 'SKU']) || '').trim();
+                    var nama = String(getVal(row, ['Nama Obat', 'Nama', 'NamaObat', 'Deskripsi']) || '').trim();
+                    var kat = String(getVal(row, ['Kategori', 'Golongan', 'Jenis', 'Kategori Obat']) || '').trim();
+                    var sat = String(getVal(row, ['Satuan', 'Unit', 'Satuan Obat']) || '').trim();
+                    
+                    var hppVal = parseFloat(getVal(row, ['HPP (Rp)', 'HPP', 'Harga Beli (Rp)', 'Harga Beli', 'Harga Pokok Pembelian', 'HargaBeli'])) || 0;
+                    var jualVal = parseFloat(getVal(row, ['Harga Jual (Rp)', 'Harga Jual', 'HargaJual', 'Jual'])) || 0;
+                    var stokVal = parseInt(getVal(row, ['Stok Awal', 'Stok Saat Ini', 'Stok', 'StokAwal', 'Jumlah Stok', 'Qty'])) || 0;
+                    var stokMinVal = parseInt(getVal(row, ['Stok Minimum', 'Stok Min', 'Minimal Stok', 'Min Stok', 'StokMin'])) || 0;
+                    var exp = String(getVal(row, ['Exp Date (YYYY-MM-DD)', 'Exp Date', 'Tanggal Kadaluarsa', 'Expired Date', 'Expired', 'Exp', 'Kadaluarsa']) || '').trim();
+                    
+                    var ppnVal = getVal(row, ['Kena PPN (Ya/Tidak)', 'Kena PPN', 'PPN (Ya/Tidak)', 'PPN', 'Pajak PPN', 'IsPPN', 'Tax']);
+                    var isPPN = true; // Default to true if not specified
+                    if (ppnVal !== undefined && ppnVal !== null && ppnVal !== "") {
+                        var pStr = String(ppnVal).toLowerCase().trim();
+                        if (pStr === 'tidak' || pStr === 'no' || pStr === 't' || pStr === 'n' || pStr === 'false' || pStr === '0') {
+                            isPPN = false;
+                        }
+                    }
+
+                    return {
+                        kodeObat: kode,
+                        namaObat: nama,
+                        kategori: kat,
+                        satuan: sat,
+                        hpp: hppVal,
+                        hargaJual: jualVal,
+                        stok: stokVal,
+                        stokMinimum: stokMinVal,
+                        expDate: exp,
+                        isPPN: isPPN
+                    };
+                }).filter(row => row.namaObat !== '' && row.hpp > 0);
+
+                if (AppApotekObat.importData.length === 0) {
+                    Utils.toast('Tidak ada data obat valid yang terbaca. Pastikan ada kolom "Nama Obat" dan "HPP (Rp)" bernilai > 0.', 'error');
+                    return;
+                }
 
                 AppApotekObat.renderImportPreview();
             } catch (err) {
@@ -328,6 +427,7 @@ window.AppApotekObat = {
                     stok: obat.stok,
                     stokMinimum: obat.stokMinimum,
                     expDate: obat.expDate,
+                    isPPN: obat.isPPN !== false,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 }, { merge: true }); 

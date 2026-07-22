@@ -63,12 +63,12 @@ async function getSatuSehatToken(clientId, clientSecret, env) {
 // Serve a config endpoint if needed for environment-based Firebase config (optional/fallback)
 app.get('/api/config', (req, res) => {
   res.json({
-    apiKey: process.env.FIREBASE_API_KEY || "AIzaSyDXuiTRwHttekv5iy6rk8RJA_pVL25v-U4",
-    authDomain: process.env.FIREBASE_AUTH_DOMAIN || "klinikapotekaulia-61641.firebaseapp.com",
-    projectId: process.env.FIREBASE_PROJECT_ID || "klinikapotekaulia-61641",
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "klinikapotekaulia-61641.firebasestorage.app",
-    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "857781555251",
-    appId: process.env.FIREBASE_APP_ID || "1:857781555251:web:33dbb41f292026f9ef9346"
+    apiKey: process.env.FIREBASE_API_KEY || "AIzaSyCuK8fZRlrU7296U8gmZZ73EdPtODxsNKA",
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN || "apotek-aulia-d0667.firebaseapp.com",
+    projectId: process.env.FIREBASE_PROJECT_ID || "apotek-aulia-d0667",
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "apotek-aulia-d0667.firebasestorage.app",
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "994675867657",
+    appId: process.env.FIREBASE_APP_ID || "1:994675867657:web:61579147786fc683caf8d8"
   });
 });
 
@@ -199,33 +199,15 @@ app.post('/api/satusehat/encounter/create', async (req, res) => {
     const encounterData = await encRes.json();
     const encounterId = encounterData.id;
     
-    // PERBAIKAN BUG PENTING: kode sebelumnya melakukan diagnosa.split('-') secara
-    // membabi-buta dan menganggap bagian pertamanya adalah kode ICD-10. Padahal
-    // field "Diagnosa" di js/klinik/rekamMedis.js adalah teks bebas tanpa aturan
-    // format apa pun (placeholder-nya "Suspek ISPA, Myalgia, dll", TIDAK ada
-    // konvensi "KODE - Deskripsi"). Akibatnya, teks diagnosa apa pun yang
-    // mengandung tanda "-" (atau bahkan yang tidak) akan terpotong dan sebagian
-    // teks dokter dikirim SEBAGAI KODE ICD-10 ke Kemenkes -- ini data medis palsu
-    // yang bisa lolos ke rekam medis nasional. Sekarang: kode ICD-10 HANYA
-    // diambil kalau teksnya benar-benar cocok pola kode ICD-10 (mis. "K30" atau
-    // "K30.1"), dan teks diagnosa asli SELALU disertakan lewat field FHIR
-    // `code.text` supaya makna diagnosa dokter tidak pernah hilang/salah baca,
-    // sesuai standar FHIR Condition yang memang mendukung teks bebas.
-    let icdCode = '';
-    let icdDisplay = '';
-    const icdPattern = /^([A-TV-Z][0-9]{2}(?:\.[0-9A-Z]{1,4})?)\s*[-:]\s*(.+)$/i;
+    // b. Create FHIR Condition resource (Diagnosis ICD-10)
+    let icdCode = "Z00.0";
+    let icdDisplay = "General medical examination";
     if (diagnosa) {
-      const match = diagnosa.trim().match(icdPattern);
-      if (match) {
-        icdCode = match[1].toUpperCase();
-        icdDisplay = match[2].trim();
-      }
+      const parts = diagnosa.split('-');
+      icdCode = parts[0].trim();
+      icdDisplay = parts[1] ? parts[1].trim() : diagnosa;
     }
-    if (!icdCode) {
-      icdCode = 'Z00.0';
-      icdDisplay = 'General medical examination';
-    }
-
+    
     const conditionPayload = {
       resourceType: "Condition",
       clinicalStatus: {
@@ -255,10 +237,7 @@ app.post('/api/satusehat/encounter/create', async (req, res) => {
             code: icdCode,
             display: icdDisplay
           }
-        ],
-        // Teks diagnosa asli dari dokter selalu disertakan apa adanya, terlepas
-        // dari berhasil/tidaknya pemetaan ke kode ICD-10 di atas.
-        text: diagnosa || icdDisplay
+        ]
       },
       subject: {
         reference: `Patient/${patientId}`,
