@@ -766,20 +766,18 @@ var menuStructure = {
 };
 
 var roleAccess = {
-    klinik:   ['utama', 'klinik', 'laporan.hutang', 'manajemen.absensi'],
-    // FIX (permintaan user): role baru khusus akun Dokter. Akses menu sama dengan
-    // Klinik, namun di dalam Antrian & Rekam Medis perilakunya dibedakan
-    // (lihat js/klinik/antrian.js & js/klinik/rekamMedis.js) — hanya akun Dokter
-    // yang bisa membuka & menyimpan Rekam Medis.
-    dokter:   ['utama', 'klinik', 'laporan.hutang', 'manajemen.absensi'],
+    klinik:   ['utama', 'klinik', 'manajemen.absensi'],
+    // Role khusus Dokter: Akses sama dengan klinik minus laporan.hutang
+    dokter:   ['utama', 'klinik', 'manajemen.absensi'],
     apotek:   ['utama', 'apotek', 'laporan.hutang', 'laporan.pengeluaran', 'laporan.penjualanHarian', 'manajemen.absensi'],
-    // FIX (permintaan user): admin sekarang punya akses penuh (CRUD) ke modul Keuangan,
-    // sementara modul Karyawan untuk admin dibuat view-only (lihat js/manajemen/karyawan.js).
-    // FIX BUG: array ini sebelumnya TIDAK menyertakan 'keuangan', padahal komentar di atas
-    // dan js/keuangan/payroll.js (yang sudah eksplisit mengizinkan role 'admin') menunjukkan
-    // niat aslinya admin bisa akses penuh -- akibatnya seluruh grup menu Keuangan (Payroll,
-    // Lap. Keuangan, Rangkuman Aktivitas, Akuntansi) tidak pernah muncul di sidebar admin.
-    admin:    ['utama', 'klinik', 'apotek', 'laporan', 'manajemen', 'keuangan', 'pengaturan.profil', 'pengaturan.tindakan', 'pengaturan.display-antrian', 'pengaturan.satusehat', 'pengaturan.landing'],
+    // Admin: Tidak termasuk laporan.auditTrail, keuangan.payroll, dan keuangan.akuntansi
+    admin:    [
+        'utama', 'klinik', 'apotek',
+        'laporan.hutang', 'laporan.pengeluaran', 'laporan.piutang', 'laporan.penjualanHarian',
+        'manajemen',
+        'keuangan.laporan-keuangan', 'keuangan.rangkuman-bulanan',
+        'pengaturan.profil', 'pengaturan.tindakan', 'pengaturan.display-antrian', 'pengaturan.satusehat', 'pengaturan.landing'
+    ],
     // FITUR BARU: akun PSA (Pemilik Sarana Apotek/Klinik). Akses lengkap kecuali: kelola user, pembagian hasil, akuntansi.
     psa:      [
         'utama', 'klinik', 'apotek', 'laporan', 'manajemen',
@@ -885,6 +883,22 @@ function loadScript(url) {
 }
 
 window.navigateTo = function (modulePath, title) {
+    // Validasi Izin Akses Modul
+    var userRole = window.currentRole || 'apotek';
+    var allowed  = roleAccess[userRole] || [];
+    var parts    = (modulePath || '').split('/');
+    if (parts.length === 2) {
+        var secKey  = parts[0];
+        var itemKey = parts[1];
+        var fullKey = secKey + '.' + itemKey;
+        var hasSection = allowed.indexOf(secKey) !== -1;
+        var hasFullKey = allowed.indexOf(fullKey) !== -1;
+        if (!hasSection && !hasFullKey && secKey !== 'dashboard' && modulePath !== 'dashboard' && modulePath !== 'chat') {
+            Utils.toast('Akses Ditolak: Akun ' + userRole.toUpperCase() + ' tidak memiliki akses ke modul ini.', 'error');
+            return;
+        }
+    }
+
     if (_currentModule && typeof _currentModule.destroy === 'function') {
         try {
             _currentModule.destroy();

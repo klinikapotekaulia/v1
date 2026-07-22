@@ -47,8 +47,8 @@ window.AppKeuanganPayroll = {
         var self = this;
         var role = window.currentRole || 'apotek';
 
-        if (role !== 'keuangan' && role !== 'admin' && role !== 'psa') {
-            document.getElementById('payroll-content').innerHTML = '<div class="bg-red-50 text-red-600 p-4 rounded-lg text-center font-semibold">Akses Ditolak. Halaman ini khusus Keuangan/Admin/PSA.</div>';
+        if (role !== 'keuangan' && role !== 'psa') {
+            document.getElementById('payroll-content').innerHTML = '<div class="bg-red-50 text-red-600 p-4 rounded-lg text-center font-semibold">Akses Ditolak. Halaman ini khusus Keuangan/PSA.</div>';
             return;
         }
 

@@ -28,7 +28,7 @@ window.AppLanding = {
     ],
 
     defaultConfig: {
-        brandName: "AULIAapotek dan Praktek Dokter Mandiri",
+        brandName: "AULIA Apotek dan Praktik Dokter Mandiri",
         brandSub: "Apotek & Praktik Dokter Terpadu",
         logoImg: "logo-192.png",
         logoSvg: '<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>',
@@ -51,7 +51,7 @@ window.AppLanding = {
                 enabled: true,
                 title: "Pelayanan Farmasi & Klinik Medis Profesional",
                 tagline: "100% Asli - Terintegrasi SatuSehat Kemenkes",
-                desc: "Selamat datang di AULIAapotek dan Praktek Dokter Mandiri. Nikmati tebus resep obat resmi dengan jaminan suhu simpan ketat, layanan konsultasi dokter yang bersahabat, serta rekam medis elektronik yang terpantau aman.",
+                desc: "Selamat datang di AULIA Apotek dan Praktik Dokter Mandiri. Nikmati tebus resep obat resmi dengan jaminan suhu simpan ketat, layanan konsultasi dokter yang bersahabat, serta rekam medis elektronik yang terpantau aman.",
                 img: "src/assets/images/aulia_pharmacy_hero_1784452733559.jpg",
                 ctaText: "Lihat Jadwal Dokter & Konsultasi",
                 labCtaText: "Kalkulator Cek Lab"
@@ -119,7 +119,7 @@ window.AppLanding = {
                 enabled: true,
                 title: "Komitmen Layanan",
                 heading: "Kenyamanan Ruang & Kepedulian Medis yang Tulus",
-                desc: "Setiap fasilitas ruang tunggu, apotek pelayanan resep, dan ruang periksa dokter di AULIAapotek dan Praktek Dokter Mandiri didesain dengan konsep modern, sejuk, dan higienis demi memberikan rasa tenang bagi seluruh pasien saat melakukan kunjungan pengobatan.",
+                desc: "Setiap fasilitas ruang tunggu, apotek pelayanan resep, dan ruang periksa dokter di AULIA Apotek dan Praktik Dokter Mandiri didesain dengan konsep modern, sejuk, dan higienis demi memberikan rasa tenang bagi seluruh pasien saat melakukan kunjungan pengobatan.",
                 img: "src/assets/images/aulia_clinic_doctor_1784453434618.jpg",
                 items: [
                     { title: "Poli Umum & Gizi", desc: "Konsultasi keluhan umum, resep obat, dan edukasi pola hidup gizi seimbang oleh dokter berpengalaman.", icon: "heart" },

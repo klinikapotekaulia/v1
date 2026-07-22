@@ -33,15 +33,20 @@ window.AppApotekObatTerlaris = {
         html += '      <p class="text-xs text-slate-500 dark:text-slate-400">Peta tingkat penjualan obat dari paling laku hingga tidak laku (0 terjual) untuk optimasi persediaan</p>';
         html += '    </div>';
 
+        var role = window.currentRole || 'apotek';
+        var canExport = (role !== 'apotek' && role !== 'admin');
+
         html += '    <div class="flex flex-wrap items-center gap-2.5 self-start md:self-auto">';
-        html += '      <button onclick="AppApotekObatTerlaris.exportExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm hover:shadow transition flex items-center gap-2">';
-        html += '        <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>';
-        html += '        <span>Export Excel</span>';
-        html += '      </button>';
-        html += '      <button onclick="AppApotekObatTerlaris.cetakLaporan()" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl shadow-sm transition flex items-center gap-2 dark:bg-slate-700 dark:hover:bg-slate-600">';
-        html += '        <i data-lucide="printer" class="w-4 h-4"></i>';
-        html += '        <span>Cetak</span>';
-        html += '      </button>';
+        if (canExport) {
+            html += '      <button onclick="AppApotekObatTerlaris.exportExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm hover:shadow transition flex items-center gap-2">';
+            html += '        <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>';
+            html += '        <span>Export Excel</span>';
+            html += '      </button>';
+            html += '      <button onclick="AppApotekObatTerlaris.cetakLaporan()" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl shadow-sm transition flex items-center gap-2 dark:bg-slate-700 dark:hover:bg-slate-600">';
+            html += '        <i data-lucide="printer" class="w-4 h-4"></i>';
+            html += '        <span>Cetak</span>';
+            html += '      </button>';
+        }
         html += '      <button onclick="AppApotekObatTerlaris.init()" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold px-3.5 py-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700 transition flex items-center gap-2">';
         html += '        <i data-lucide="refresh-cw" class="w-4 h-4"></i>';
         html += '        <span>Refresh</span>';
@@ -739,6 +744,12 @@ window.AppApotekObatTerlaris = {
     },
 
     exportExcel: function() {
+        var role = window.currentRole || 'apotek';
+        if (role === 'apotek' || role === 'admin') {
+            Utils.toast('Akses Ditolak: Fitur export Excel tidak tersedia untuk akun ' + role.toUpperCase(), 'error');
+            return;
+        }
+
         if (!window.XLSX) {
             Utils.toast('Library SheetJS belum siap!', 'error');
             return;
@@ -805,6 +816,12 @@ window.AppApotekObatTerlaris = {
     },
 
     cetakLaporan: function() {
+        var role = window.currentRole || 'apotek';
+        if (role === 'apotek' || role === 'admin') {
+            Utils.toast('Akses Ditolak: Fitur cetak tidak tersedia untuk akun ' + role.toUpperCase(), 'error');
+            return;
+        }
+
         var printWin = window.open('', '_blank');
         if (!printWin) {
             Utils.toast('Popup blocker aktif! Harap izinkan popup.', 'error');

@@ -42,12 +42,12 @@ window.AppDashboard = {
 
     // Helper kartu statistik
     card: function(title, value, icon, color, desc) {
-        return '<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm flex items-center gap-4">' +
+        return '<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm flex items-center gap-4 min-w-0 flex-1">' +
             '<div class="w-12 h-12 rounded-full bg-' + color + '-100 dark:bg-' + color + '-900/30 flex items-center justify-center flex-shrink-0">' +
             '<i data-lucide="' + icon + '" class="w-6 h-6 text-' + color + '-600 dark:text-' + color + '-400"></i></div>' +
-            '<div><p class="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold">' + title + '</p>' +
-            '<h3 class="text-xl font-bold text-gray-800 dark:text-white">' + value + '</h3>' +
-            (desc ? '<p class="text-[10px] text-slate-400 mt-1">' + desc + '</p>' : '') + '</div></div>';
+            '<div class="min-w-0 flex-1"><p class="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold truncate">' + title + '</p>' +
+            '<h3 class="text-lg sm:text-xl font-bold text-gray-800 dark:text-white truncate" title="' + Utils.escapeHtml(value) + '">' + value + '</h3>' +
+            (desc ? '<p class="text-[10px] text-slate-400 mt-1 truncate">' + desc + '</p>' : '') + '</div></div>';
     },
 
     // ===== DASHBOARD KLINIK =====
@@ -82,7 +82,7 @@ window.AppDashboard = {
             html += '<div class="bg-white dark:bg-slate-800 p-5 rounded-xl border"><h3 class="font-bold mb-3 text-gray-800 dark:text-white">Aksi Cepat</h3>';
             html += '<button onclick="navigateTo(\'klinik/antrian\', \'Antrian\')" class="w-full bg-primary-600 text-white p-3 rounded-lg mb-2 flex items-center gap-2"><i data-lucide="list-ordered" class="w-4 h-4"></i> Buka Antrian</button>';
             html += '<button onclick="navigateTo(\'klinik/rekamMedis\', \'Rekam Medis\')" class="w-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 p-3 rounded-lg mb-2 flex items-center gap-2"><i data-lucide="file-heart" class="w-4 h-4"></i> Input Rekam Medis</button>';
-            html += '<button onclick="navigateTo(\'laporan/hutang\', \'Hutang Usaha\')" class="w-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 p-3 rounded-lg flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4"></i> Laporan Hutang & Pengajuan Bayar</button>';
+            html += '<button onclick="navigateTo(\'klinik/pasien\', \'Data Pasien\')" class="w-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 p-3 rounded-lg flex items-center gap-2"><i data-lucide="users" class="w-4 h-4"></i> Data Pasien</button>';
             html += '</div></div>';
 
             document.getElementById('dashboard-content').innerHTML = html;
@@ -343,16 +343,23 @@ window.AppDashboard = {
         var today = Utils.today();
         var startMonth = today.slice(0, 8) + '01';
 
-        var pTrx = db.collection('transaksi').where('tanggal', '>=', startMonth).where('tanggal', '<=', today).get();
-        var pKasKeluar = db.collection('kasKeluar').where('status', '==', 'approved').where('tanggal', '>=', startMonth).where('tanggal', '<=', today).get();
-        var pBeli = db.collection('pembelian').where('metodePembayaran', '==', 'tunai').where('tanggal', '>=', startMonth).where('tanggal', '<=', today).get();
-        var pHutangJatuhTempo = db.collection('pembelian').where('statusPelunasan', 'in', ['belum_lunas','sebagian','belum']).get();
-        var pPiutang = db.collection('piutangKaryawan').where('status', '==', 'belum_lunas').get();
-        var pObat = db.collection('obat').get();
+        var pTrx = db.collection('transaksi').where('tanggal', '>=', startMonth).where('tanggal', '<=', today).get().catch(function(e) { console.warn('pTrx err:', e); return []; });
+        var pKasKeluar = db.collection('kasKeluar').where('tanggal', '>=', startMonth).where('tanggal', '<=', today).get().catch(function(e) { console.warn('pKasKeluar err:', e); return []; });
+        var pBeli = db.collection('pembelian').where('tanggal', '>=', startMonth).where('tanggal', '<=', today).get().catch(function(e) { console.warn('pBeli err:', e); return []; });
+        var pHutangJatuhTempo = db.collection('pembelian').get().catch(function(e) { console.warn('pHutang err:', e); return []; });
+        var pPiutang = db.collection('piutangKaryawan').get().catch(function(e) { console.warn('pPiutang err:', e); return []; });
+        var pObat = db.collection('obat').get().catch(function(e) { console.warn('pObat err:', e); return []; });
+        var pPsaConfig = db.collection('pengaturan').doc('psaInvestasi').get().catch(function(e) { console.warn('pPsaConfig err:', e); return null; });
 
-        Promise.all([pTrx, pKasKeluar, pBeli, pHutangJatuhTempo, pPiutang, pObat]).then(function(results) {
+        Promise.all([pTrx, pKasKeluar, pBeli, pHutangJatuhTempo, pPiutang, pObat, pPsaConfig]).then(function(results) {
+            var safeForEach = function(res, cb) {
+                if (res && typeof res.forEach === 'function') {
+                    res.forEach(cb);
+                }
+            };
+
             var omzetBulan = 0, hppBulan = 0;
-            results[0].forEach(function(doc) {
+            safeForEach(results[0], function(doc) {
                 var t = doc.data();
                 var omzet = t.items ? t.items.reduce(function(s, i) { return s + (i.jumlah * i.hargaJual); }, 0) : 0;
                 var hpp = t.items ? t.items.reduce(function(s, i) { return s + (i.jumlah * (i.hargaBeli || 0)); }, 0) : 0;
@@ -361,24 +368,41 @@ window.AppDashboard = {
             });
 
             var bebanOp = 0;
-            results[1].forEach(function(doc) { bebanOp += doc.data().jumlah || 0; });
+            safeForEach(results[1], function(doc) {
+                var k = doc.data();
+                if (k.status === 'approved') bebanOp += k.jumlah || 0;
+            });
 
             var beliTunai = 0;
-            results[2].forEach(function(doc) { beliTunai += doc.data().totalHarga || 0; });
+            safeForEach(results[2], function(doc) {
+                var b = doc.data();
+                if (b.metodePembayaran === 'tunai') beliTunai += b.totalHarga || 0;
+            });
 
             var labaKotor = omzetBulan - hppBulan;
             var labaBersih = labaKotor - bebanOp;
             var netCashFlow = omzetBulan - beliTunai - bebanOp;
 
-            var hutangAktif = results[3].size;
-            var piutangAktif = results[4].size;
+            var hutangAktif = 0;
+            safeForEach(results[3], function(doc) {
+                var b = doc.data();
+                if (['belum_lunas', 'sebagian', 'belum'].indexOf(b.statusPelunasan) !== -1) hutangAktif++;
+            });
+
+            var piutangAktif = 0;
+            safeForEach(results[4], function(doc) {
+                var p = doc.data();
+                if (p.status === 'belum_lunas') piutangAktif++;
+            });
 
             var lowStockCount = 0;
-            results[5].forEach(function(doc) {
+            var nilaiInventaris = 0;
+            safeForEach(results[5], function(doc) {
                 var o = doc.data();
                 if ((o.stok || 0) <= (o.stokMinimum || 0)) {
                     lowStockCount++;
                 }
+                nilaiInventaris += (parseFloat(o.stok) || 0) * (parseFloat(o.hpp) || 0);
             });
 
             var html = '<div class="flex flex-col gap-1 mb-4">';
@@ -386,8 +410,8 @@ window.AppDashboard = {
             html += '  <p class="text-sm text-slate-500 dark:text-slate-400">Pengawasan performa finansial apotek, aset, liabilitas, ketersediaan stok, dan audit keamanan secara real-time.</p>';
             html += '</div>';
 
-            // Stat Cards Grid
-            html += '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">';
+            // Stat Cards Grid: 2 kolom di layar sedang/komputer (md:) = TEPAT 3 BARIS (6 kartu / 2)
+            html += '<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">';
             html += self.card('Omzet Bulan Ini', Utils.formatRupiah(omzetBulan), 'trending-up', 'blue', 'Penjualan obat & jasa');
             html += self.card('Estimasi Laba Bersih', Utils.formatRupiah(labaBersih), 'piggy-bank', labaBersih >= 0 ? 'emerald' : 'red', 'Laba kotor - Operasional');
             html += self.card('Arus Kas Bersih', Utils.formatRupiah(netCashFlow), 'wallet', netCashFlow >= 0 ? 'indigo' : 'orange', 'Inflow - Outflow');
@@ -402,31 +426,31 @@ window.AppDashboard = {
             html += '</div>';
 
             // ===== WIDGET RINGKASAN INVESTASI PSA =====
-            var nilaiInventaris = 0;
-            results[5].forEach(function(doc) {
-                var o = doc.data();
-                nilaiInventaris += (parseFloat(o.stok) || 0) * (parseFloat(o.hpp) || 0);
-            });
-            var asetPeralatan = 50000000; // Baseline peralatan medis & apotek
-            var asetPerlengkapan = 8500000; // Baseline perlengkapan & ATK
-            var estimasiKas = 150000000 + netCashFlow; // Modal kas dasar + cash flow berjalan bulan ini
+            // Baca data baseline dari database Firestore pengaturan/psaInvestasi (jika sudah diset user)
+            var psaConfigDoc = (results[6] && results[6].exists) ? results[6].data() : {};
+            var modalKasAwal = typeof psaConfigDoc.modalKasAwal === 'number' ? psaConfigDoc.modalKasAwal : 150000000;
+            var asetPeralatan = typeof psaConfigDoc.asetPeralatan === 'number' ? psaConfigDoc.asetPeralatan : 50000000;
+            var asetPerlengkapan = typeof psaConfigDoc.asetPerlengkapan === 'number' ? psaConfigDoc.asetPerlengkapan : 8500000;
+
+            var estimasiKas = modalKasAwal + netCashFlow; // Kas dasar + cash flow berjalan bulan ini
             var totalAset = estimasiKas + nilaiInventaris + asetPeralatan + asetPerlengkapan;
 
-            // Set state untuk interaktivitas dividen di tingkat window agar tombol interaktif bekerja langsung
+            // Set state untuk interaktivitas dividen dan modal setting
             window.AppDashboardPsaState = {
                 labaBersih: labaBersih,
+                modalKasAwal: modalKasAwal,
+                asetPeralatan: asetPeralatan,
+                asetPerlengkapan: asetPerlengkapan,
                 changeRatio: function(ratio) {
                     var laba = this.labaBersih;
                     var divVal = laba > 0 ? (laba * ratio) : 0;
                     var retainedVal = laba > 0 ? (laba * (1 - ratio)) : laba;
                     
-                    // Update label di UI secara dinamis
                     var elDiv = document.getElementById('psa-projected-dividend');
                     var elRetained = document.getElementById('psa-retained-earnings');
                     if (elDiv) elDiv.textContent = Utils.formatRupiah(Math.round(divVal));
                     if (elRetained) elRetained.textContent = Utils.formatRupiah(Math.round(retainedVal));
                     
-                    // Update styling tombol aktif
                     [30, 50, 70].forEach(function(r) {
                         var btn = document.getElementById('ratio-' + r);
                         if (btn) {
@@ -436,6 +460,46 @@ window.AppDashboard = {
                                 btn.className = 'px-3 py-1 text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600/80 transition-all';
                             }
                         }
+                    });
+                },
+                openEditModal: function() {
+                    var modalHtml = '<div class="p-6 space-y-4">';
+                    modalHtml += '  <div class="flex justify-between items-center border-b pb-3 dark:border-slate-700">';
+                    modalHtml += '    <h3 class="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2"><i data-lucide="settings-2" class="w-5 h-5 text-primary-500"></i> Pengaturan Modal Baseline PSA</h3>';
+                    modalHtml += '    <button onclick="Utils.closeModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i data-lucide="x" class="w-5 h-5"></i></button>';
+                    modalHtml += '  </div>';
+                    modalHtml += '  <p class="text-xs text-slate-500 dark:text-slate-400">Silakan atur nilai modal kas awal, aset peralatan, dan perlengkapan riil apotek. Data ini disimpan permanen di database Firestore pengaturan/psaInvestasi.</p>';
+                    modalHtml += '  <div class="space-y-3">';
+                    modalHtml += '    <div><label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Modal Kas Awal / Kas Dasar (Rp)</label>';
+                    modalHtml += '    <input type="number" id="psa-input-kas" value="' + this.modalKasAwal + '" class="w-full px-3 py-2 border rounded-lg text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-white" placeholder="150000000"></div>';
+                    modalHtml += '    <div><label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Nilai Aset Peralatan Medis & Apotek (Rp)</label>';
+                    modalHtml += '    <input type="number" id="psa-input-peralatan" value="' + this.asetPeralatan + '" class="w-full px-3 py-2 border rounded-lg text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-white" placeholder="50000000"></div>';
+                    modalHtml += '    <div><label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Nilai Aset Perlengkapan & ATK (Rp)</label>';
+                    modalHtml += '    <input type="number" id="psa-input-perlengkapan" value="' + this.asetPerlengkapan + '" class="w-full px-3 py-2 border rounded-lg text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-white" placeholder="8500000"></div>';
+                    modalHtml += '  </div>';
+                    modalHtml += '  <div class="flex justify-end gap-2 pt-3 border-t dark:border-slate-700">';
+                    modalHtml += '    <button onclick="Utils.closeModal()" class="px-4 py-2 text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-200">Batal</button>';
+                    modalHtml += '    <button onclick="window.AppDashboardPsaState.saveBaselineData()" class="px-4 py-2 text-xs font-semibold bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-1.5"><i data-lucide="save" class="w-4 h-4"></i> Simpan Permanen</button>';
+                    modalHtml += '  </div>';
+                    modalHtml += '</div>';
+                    Utils.openModal(modalHtml);
+                },
+                saveBaselineData: function() {
+                    var kas = parseFloat(document.getElementById('psa-input-kas')?.value) || 0;
+                    var peralatan = parseFloat(document.getElementById('psa-input-peralatan')?.value) || 0;
+                    var perlengkapan = parseFloat(document.getElementById('psa-input-perlengkapan')?.value) || 0;
+
+                    db.collection('pengaturan').doc('psaInvestasi').set({
+                        modalKasAwal: kas,
+                        asetPeralatan: peralatan,
+                        asetPerlengkapan: perlengkapan,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true }).then(function() {
+                        Utils.closeModal();
+                        Utils.toast('Nilai Modal & Baseline Aset PSA berhasil disimpan!', 'success');
+                        if (window.AppDashboard) window.AppDashboard.renderPsa();
+                    }).catch(function(err) {
+                        Utils.toast('Gagal menyimpan data: ' + err.message, 'error');
                     });
                 }
             };
@@ -449,11 +513,14 @@ window.AppDashboard = {
             html += '      <h3 class="text-base font-bold text-gray-800 dark:text-white flex items-center gap-2"><i data-lucide="line-chart" class="w-5 h-5 text-emerald-500"></i> Ringkasan Investasi & Portofolio PSA</h3>';
             html += '      <p class="text-xs text-slate-500 dark:text-slate-400">Ikhtisar aset riil, estimasi pembagian dividen berkala, dan rincian alokasi aset fisik apotek.</p>';
             html += '    </div>';
-            html += '    <div class="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/40 p-1.5 rounded-lg border border-slate-100 dark:border-slate-700/50">';
-            html += '      <span class="text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500 px-2">Payout Ratio:</span>';
-            html += '      <button id="ratio-30" onclick="window.AppDashboardPsaState.changeRatio(0.30)" class="px-3 py-1 text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600/80 transition-all">30%</button>';
-            html += '      <button id="ratio-50" onclick="window.AppDashboardPsaState.changeRatio(0.50)" class="px-3 py-1 text-xs bg-primary-600 text-white rounded-md font-semibold shadow-sm transition-all">50%</button>';
-            html += '      <button id="ratio-70" onclick="window.AppDashboardPsaState.changeRatio(0.70)" class="px-3 py-1 text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600/80 transition-all">70%</button>';
+            html += '    <div class="flex items-center gap-2 flex-wrap">';
+            html += '      <button onclick="window.AppDashboardPsaState.openEditModal()" class="px-2.5 py-1.5 text-xs bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800/50 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/50 flex items-center gap-1.5 font-semibold transition-all shadow-xs" title="Atur Modal Kas Awal & Baseline Aset Peralatan/Perlengkapan"><i data-lucide="settings-2" class="w-3.5 h-3.5 text-primary-500"></i> Atur Modal & Aset</button>';
+            html += '      <div class="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/40 p-1.5 rounded-lg border border-slate-100 dark:border-slate-700/50">';
+            html += '        <span class="text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500 px-2">Payout Ratio:</span>';
+            html += '        <button id="ratio-30" onclick="window.AppDashboardPsaState.changeRatio(0.30)" class="px-3 py-1 text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600/80 transition-all">30%</button>';
+            html += '        <button id="ratio-50" onclick="window.AppDashboardPsaState.changeRatio(0.50)" class="px-3 py-1 text-xs bg-primary-600 text-white rounded-md font-semibold shadow-sm transition-all">50%</button>';
+            html += '        <button id="ratio-70" onclick="window.AppDashboardPsaState.changeRatio(0.70)" class="px-3 py-1 text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600/80 transition-all">70%</button>';
+            html += '      </div>';
             html += '    </div>';
             html += '  </div>';
 

@@ -291,6 +291,7 @@ service cloud.firestore {
     match /pengaturan/antrianDisplaySettings   { allow read: if true; allow write: if isAnyStaff(); }
     match /pengaturan/profil                   { allow read: if isAnyStaff(); allow write: if isAdminKeuanganPSA(); }
     match /pengaturan/satusehatSettings        { allow read, write: if isAdminKeuanganPSA(); }
+    match /pengaturan/psaInvestasi             { allow read, write: if isAdminKeuanganPSA(); }
     match /pengaturan/landing                  { allow read: if true; allow write: if hasRole(['keuangan', 'psa']); }
     match /pengaturanGaji/{id}                 { allow read, write: if isAdminKeuanganPSA(); }
     // BUGFIX: dibaca oleh js/apotek/transaksi.js (Promise.all) untuk hitung

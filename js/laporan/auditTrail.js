@@ -141,10 +141,10 @@ window.AppLaporanAuditTrail = {
     init: function() {
         // Keamanan tambahan: Cek role
         var role = window.currentRole || 'apotek';
-        if (role !== 'admin' && role !== 'keuangan' && role !== 'psa') {
+        if (role !== 'keuangan' && role !== 'psa') {
             var container = document.getElementById('audit-trail-content');
             if (container) {
-                container.innerHTML = '<div class="bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 p-4 rounded-lg">Akses Ditolak. Halaman ini khusus Admin/Keuangan/PSA.</div>';
+                container.innerHTML = '<div class="bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 p-4 rounded-lg">Akses Ditolak. Halaman ini khusus Keuangan/PSA.</div>';
             }
             return;
         }

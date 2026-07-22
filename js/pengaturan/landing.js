@@ -97,7 +97,7 @@ window.AppPengaturanLanding = {
             
             // Re-read structural default config to merge and prevent missing structures
             var def = (window.AppLanding && window.AppLanding.defaultConfig) ? window.AppLanding.defaultConfig : {
-                brandName: "AULIAapotek dan Praktek Dokter Mandiri",
+                brandName: "AULIA Apotek dan Praktik Dokter Mandiri",
                 brandSub: "Apotek & Praktik Dokter Terpadu",
                 logoSvg: '',
                 waNumber: "6281234567890",

@@ -70,6 +70,15 @@ window.AppKeuanganAkuntansi = {
     },
 
     init: function() {
+        var role = window.currentRole || 'apotek';
+        if (role !== 'keuangan' && role !== 'psa') {
+            var container = document.getElementById('akuntansi-content') || document.getElementById('app-content');
+            if (container) {
+                container.innerHTML = '<div class="p-8 text-center text-red-500 font-bold bg-white dark:bg-slate-800 rounded-xl border">Akses Ditolak: Halaman Akuntansi khusus Keuangan/PSA.</div>';
+            }
+            return;
+        }
+
         var self = this;
         var monthInput = document.getElementById('filter-bulan-akuntansi');
         if (!monthInput) return;
