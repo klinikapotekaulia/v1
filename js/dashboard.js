@@ -55,7 +55,11 @@ window.AppDashboard = {
         var self = this;
         var today = Utils.today(); // FIX: pakai tanggal lokal, bukan UTC (lihat catatan di Utils.today)
         var pAntrian = db.collection('antrian').where('tanggal', '==', today).get();
-        var pResep = db.collection('rekamMedis').where('status', '==', 'selesai').get();
+        // FIX (READ SPIKE): sebelumnya where('status','==','selesai') tanpa limit() ->
+        // tarik SEMUA rekam medis yang pernah selesai (terus bertambah, dibaca ulang
+        // tiap Dashboard dibuka/refresh -- halaman paling sering diakses di app ini).
+        // Query langsung ke statusResep=='menunggu' jauh lebih murah & hasilnya sama.
+        var pResep = db.collection('rekamMedis').where('statusResep', '==', 'menunggu').get();
 
         Promise.all([pAntrian, pResep]).then(function(results) {
             var menunggu = 0, dilayani = 0;
@@ -65,11 +69,7 @@ window.AppDashboard = {
                 else if (d.status === 'dilayani') dilayani++;
             });
 
-            var resepMenunggu = 0;
-            results[1].forEach(function(doc) {
-                var d = doc.data();
-                if (!d.statusResep || d.statusResep === 'menunggu') resepMenunggu++;
-            });
+            var resepMenunggu = results[1].size;
 
             var html = '<h2 class="text-xl font-bold text-gray-800 dark:text-white mb-4">Dashboard Klinik</h2>';
             html += '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">';
@@ -147,7 +147,10 @@ window.AppDashboard = {
         var today = Utils.today(); // FIX: pakai tanggal lokal, bukan UTC (lihat catatan di Utils.today)
         var pTrx = db.collection('transaksi').where('tanggal', '==', today).get();
         var pObat = DataCache.getObat();
-        var pResep = db.collection('rekamMedis').where('status', '==', 'selesai').get();
+        // FIX (READ SPIKE): sama seperti di renderKlinik() -- query langsung ke
+        // statusResep=='menunggu' menggantikan where('status','==','selesai') tanpa
+        // limit() yang sebelumnya menarik seluruh riwayat rekam medis yang selesai.
+        var pResep = db.collection('rekamMedis').where('statusResep', '==', 'menunggu').get();
 
         Promise.all([pTrx, pObat, pResep]).then(function(results) {
             var cash = 0, transfer = 0, qris = 0;
@@ -164,11 +167,7 @@ window.AppDashboard = {
                 if ((o.stok || 0) <= (o.stokMinimum || 0)) stokMenipis++;
             });
 
-            var resepMenunggu = 0;
-            results[2].forEach(function(doc) {
-                var d = doc.data();
-                if (!d.statusResep || d.statusResep === 'menunggu') resepMenunggu++;
-            });
+            var resepMenunggu = results[2].size;
 
             var html = '<h2 class="text-xl font-bold text-gray-800 dark:text-white mb-4">Dashboard Apotek</h2>';
             html += '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">';

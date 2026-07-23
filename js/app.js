@@ -1202,7 +1202,18 @@ function stopUserHeartbeat() {
 // AUTO-LOGOUT MECHANISM (IDLE TRACKER - 15 MINUTES)
 // ============================================================
 var _idleTimer = null;
-var _idleTimeoutMs = 15 * 60 * 1000; // 15 menit
+// FIX (READ SPIKE): sebelumnya 15 menit. Setiap kali autoLogout() memanggil
+// signOut(), listener onSnapshot milik DataCache (obat & pasien) langsung
+// ditolak rules (isSignedIn() == false) -> DataCache._ready dihapus paksa ->
+// begitu user login lagi, DataCache membuat listener BARU yang otomatis
+// menagih FULL READ ulang seluruh koleksi obat & pasien (bukan cuma sekali
+// per sesi seperti niat awal DataCache, tapi sekali per SIKLUS logout-login).
+// Dinaikkan ke 8 jam (kurang lebih 1 shift kerja) atas permintaan langsung,
+// supaya siklus logout-login praktis cuma terjadi 1x/hari per staf. Catatan:
+// makin panjang timeout, makin lama juga sesi tetap terbuka di perangkat yang
+// ditinggal tanpa logout manual -- pastikan perangkat kasir tetap fisik aman
+// (tidak diakses sembarang orang) karena proteksi sesi-otomatis ini melemah.
+var _idleTimeoutMs = 8 * 60 * 60 * 1000; // 8 jam
 var _lastActivityTime = 0;
 
 function handleUserActivity() {

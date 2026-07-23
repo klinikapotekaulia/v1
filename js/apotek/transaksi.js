@@ -37,7 +37,14 @@ window.AppApotekTransaksi = {
         Promise.all([
             DataCache.getObat(),
             db.collection('pengaturanPembagian').doc('global').get(),
-            db.collection('rekamMedis').where('status', '==', 'selesai').get(),
+            // FIX (READ SPIKE): sebelumnya where('status','==','selesai') tanpa limit()
+            // -> menarik SEMUA rekam medis yang pernah selesai (terus bertambah seiring
+            // waktu, bisa ribuan dokumen), lalu baru difilter statusResep di client.
+            // Field statusResep SELALU diisi 'menunggu' saat rekam medis dibuat (lihat
+            // js/klinik/rekamMedis.js), jadi aman & jauh lebih murah untuk query
+            // langsung ke statusResep=='menunggu' di server -- hasilnya cuma resep
+            // yang benar-benar masih perlu diproses, bukan seluruh riwayat.
+            db.collection('rekamMedis').where('statusResep', '==', 'menunggu').get(),
             db.collection('antrian').where('tanggal', '==', today).get(),
             db.collection('masterTindakan').where('aktif', '==', true).get()
         ]).then(function(results) {
@@ -66,11 +73,11 @@ window.AppApotekTransaksi = {
             self.antrianList = [];
             results[3].forEach(function(doc) { var d = doc.data(); d.id = doc.id; self.antrianList.push(d); });
 
-            // Resep klinik menunggu
+            // Resep klinik menunggu (sudah difilter di query, tidak perlu filter lagi di sini)
             self.resepList = [];
             results[2].forEach(function(doc) {
                 var d = doc.data(); d.id = doc.id;
-                if (!d.statusResep || d.statusResep === 'menunggu') self.resepList.push(d);
+                self.resepList.push(d);
             });
 
             self.renderForm();
