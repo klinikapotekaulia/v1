@@ -3,7 +3,7 @@
  * Strategi: Cache shell statis, skip Firebase/CDN dynamic calls.
  */
 
-var CACHE_NAME = 'aulia-v18'; // FIX v18: bump cache to clear stale landing.js cache
+var CACHE_NAME = 'aulia-v19'; // FIX v19: bump cache to clear stale landing.js cache
 
 var SHELL_URLS = [
     './',

@@ -733,6 +733,7 @@ var menuStructure = {
     laporan: [
         { id: 'hutang',          label: 'Hutang Usaha',      icon: 'file-text',     module: 'laporan/hutang'         },
         { id: 'pengeluaran',     label: 'Pengeluaran',       icon: 'receipt',       module: 'laporan/pengeluaran'    },
+        { id: 'pendapatan-lain', label: 'Pendapatan Lainnya', icon: 'circle-dollar-sign', module: 'laporan/pendapatanLain' },
         { id: 'piutang',         label: 'Piutang Karyawan',  icon: 'wallet',        module: 'laporan/piutang'        },
         { id: 'penjualanHarian', label: 'Penjualan Harian',  icon: 'bar-chart-2',   module: 'laporan/penjualanHarian'},
         { id: 'auditTrail',      label: 'Audit Trail',       icon: 'history',       module: 'laporan/auditTrail'     }
@@ -746,6 +747,7 @@ var menuStructure = {
         { id: 'stok-mati', label: 'Pengawasan Stok', icon: 'package-x', module: 'manajemen/stokMati' }
     ],
     keuangan: [
+        { id: 'dashboard-keuangan', label: 'Dashboard Keuangan', icon: 'layout-dashboard', module: 'keuangan/dashboardKeuangan' },
         { id: 'payroll',           label: 'Payroll',             icon: 'calculator',     module: 'keuangan/payroll'          },
         { id: 'laporan-keuangan',  label: 'Lap. Keuangan',       icon: 'bar-chart-3',    module: 'keuangan/laporanKeuangan'  },
         { id: 'rangkuman-bulanan', label: 'Rangkuman Aktivitas', icon: 'calendar-range', module: 'keuangan/rangkumanBulanan' },
@@ -769,19 +771,19 @@ var roleAccess = {
     klinik:   ['utama', 'klinik', 'manajemen.absensi'],
     // Role khusus Dokter: Akses sama dengan klinik minus laporan.hutang
     dokter:   ['utama', 'klinik', 'manajemen.absensi'],
-    apotek:   ['utama', 'apotek', 'laporan.hutang', 'laporan.pengeluaran', 'laporan.penjualanHarian', 'manajemen.absensi'],
+    apotek:   ['utama', 'apotek', 'laporan.hutang', 'laporan.pengeluaran', 'laporan.pendapatan-lain', 'laporan.penjualanHarian', 'manajemen.absensi'],
     // Admin: Tidak termasuk laporan.auditTrail, keuangan.payroll, dan keuangan.akuntansi
     admin:    [
         'utama', 'klinik', 'apotek',
-        'laporan.hutang', 'laporan.pengeluaran', 'laporan.piutang', 'laporan.penjualanHarian',
+        'laporan.hutang', 'laporan.pengeluaran', 'laporan.pendapatan-lain', 'laporan.piutang', 'laporan.penjualanHarian',
         'manajemen',
-        'keuangan.laporan-keuangan', 'keuangan.rangkuman-bulanan',
+        'keuangan.dashboard-keuangan', 'keuangan.laporan-keuangan', 'keuangan.rangkuman-bulanan',
         'pengaturan.profil', 'pengaturan.tindakan', 'pengaturan.display-antrian', 'pengaturan.satusehat', 'pengaturan.landing'
     ],
     // FITUR BARU: akun PSA (Pemilik Sarana Apotek/Klinik). Akses lengkap kecuali: kelola user, pembagian hasil, akuntansi.
     psa:      [
         'utama', 'klinik', 'apotek', 'laporan', 'manajemen',
-        'keuangan.payroll', 'keuangan.laporan-keuangan', 'keuangan.rangkuman-bulanan',
+        'keuangan.dashboard-keuangan', 'keuangan.payroll', 'keuangan.laporan-keuangan', 'keuangan.rangkuman-bulanan',
         'pengaturan.profil', 'pengaturan.tindakan', 'pengaturan.gaji', 'pengaturan.display-antrian', 'pengaturan.satusehat', 'pengaturan.landing'
     ],
     keuangan: ['utama', 'klinik', 'apotek', 'laporan', 'manajemen', 'keuangan', 'pengaturan']

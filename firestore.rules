@@ -226,6 +226,13 @@ service cloud.firestore {
       allow update, delete: if isAdminKeuangan() || hasRole(['psa']);
     }
     match /saldoAwal/{id}         { allow read, write: if isAdminKeuangan(); }
+    // BARU: Pendapatan Lainnya (non-operasional: sewa, bunga bank, komisi, dll) —
+    // js/laporan/pendapatanLain.js. Bisa diinput oleh apotek/admin/psa/keuangan,
+    // tapi edit & hapus data yang sudah tercatat KHUSUS role 'keuangan' saja.
+    match /pendapatanLain/{id} {
+      allow read, create: if isApotekStaff();
+      allow update, delete: if hasRole(['keuangan']);
+    }
     // BUGFIX: sebelumnya "allow write: if hasRole(['keuangan'])" -> role 'admin' bisa BUKA
     // halaman Payroll (lihat guard role di js/keuangan/payroll.js init()) tapi tombol
     // "Bayarkan" akan gagal disimpan (permission-denied) karena rule tulis cuma izinkan
