@@ -733,7 +733,7 @@ var menuStructure = {
     laporan: [
         { id: 'hutang',          label: 'Hutang Usaha',      icon: 'file-text',     module: 'laporan/hutang'         },
         { id: 'pengeluaran',     label: 'Pengeluaran',       icon: 'receipt',       module: 'laporan/pengeluaran'    },
-        { id: 'pendapatan-lain', label: 'Pendapatan Lainnya', icon: 'circle-dollar-sign', module: 'laporan/pendapatanLain' },
+        { id: 'pendapatan-lain', label: 'Pendapatan Lain', icon: 'circle-dollar-sign', module: 'laporan/pendapatanLain' },
         { id: 'piutang',         label: 'Piutang Karyawan',  icon: 'wallet',        module: 'laporan/piutang'        },
         { id: 'penjualanHarian', label: 'Penjualan Harian',  icon: 'bar-chart-2',   module: 'laporan/penjualanHarian'},
         { id: 'auditTrail',      label: 'Audit Trail',       icon: 'history',       module: 'laporan/auditTrail'     }
